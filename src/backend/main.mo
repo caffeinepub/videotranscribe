@@ -1,13 +1,17 @@
+import Map "mo:core/Map";
 import Text "mo:core/Text";
 import Array "mo:core/Array";
 import Int "mo:core/Int";
 import Time "mo:core/Time";
-import Runtime "mo:core/Runtime";
-import Map "mo:core/Map";
 import Order "mo:core/Order";
 import Iter "mo:core/Iter";
+import Runtime "mo:core/Runtime";
+import Storage "blob-storage/Storage";
+import MixinStorage "blob-storage/Mixin";
 
 actor {
+  include MixinStorage();
+
   type LanguageCode = Text;
   type TranscriptionId = Text;
   type FilePath = Text;
@@ -99,8 +103,101 @@ actor {
     timestamp : Time.Time;
   };
 
-  let transcriptionHistory = Map.empty<TranscriptionId, TranscriptionRecord>();
+  type User = {
+    id : Text;
+    name : Text;
+    email : Text;
+    phone : Text;
+    timestamp : Time.Time;
+  };
 
+  type UserInput = {
+    id : Text;
+    name : Text;
+    email : Text;
+    phone : Text;
+    timestamp : Time.Time;
+  };
+
+  type Rating = {
+    id : Text;
+    userName : Text;
+    stars : Nat8;
+    comment : Text;
+    timestamp : Time.Time;
+  };
+
+  type RatingInput = {
+    id : Text;
+    userName : Text;
+    stars : Nat8;
+    comment : Text;
+    timestamp : Time.Time;
+  };
+
+  type UserActivity = {
+    id : Text;
+    userId : Text;
+    userName : Text;
+    userEmail : Text;
+    activityType : Text;
+    inputText : Text;
+    outputText : Text;
+    sourceFile : Text;
+    detectedLanguage : Text;
+    timestamp : Time.Time;
+  };
+
+  module UserActivity {
+    public func compareByTimestamp(activity1 : UserActivity, activity2 : UserActivity) : Order.Order {
+      Int.compare(activity1.timestamp, activity2.timestamp);
+    };
+  };
+
+  type UserActivityInput = {
+    id : Text;
+    userId : Text;
+    userName : Text;
+    userEmail : Text;
+    activityType : Text;
+    inputText : Text;
+    outputText : Text;
+    sourceFile : Text;
+    detectedLanguage : Text;
+    timestamp : Time.Time;
+  };
+
+  type VideoRecord = {
+    id : Text;
+    fileName : Text;
+    blob : Storage.ExternalBlob;
+    uploaderName : Text;
+    uploaderEmail : Text;
+    timestamp : Time.Time;
+  };
+
+  module VideoRecord {
+    public func compareByTimestamp(record1 : VideoRecord, record2 : VideoRecord) : Order.Order {
+      Int.compare(record2.timestamp, record1.timestamp);
+    };
+  };
+
+  type VideoRecordInput = {
+    id : Text;
+    fileName : Text;
+    blob : Storage.ExternalBlob;
+    uploaderName : Text;
+    uploaderEmail : Text;
+    timestamp : Time.Time;
+  };
+
+  let transcriptionHistory = Map.empty<TranscriptionId, TranscriptionRecord>();
+  let users = Map.empty<Text, User>();
+  let ratings = Map.empty<Text, Rating>();
+  let userActivities = Map.empty<Text, UserActivity>();
+  let videoRecords = Map.empty<Text, VideoRecord>();
+
+  // Transcription History Methods
   public shared ({ caller }) func saveTranscription(input : TranscriptionRecordInput) : async () {
     let record : TranscriptionRecord = {
       id = input.id;
@@ -129,5 +226,95 @@ actor {
 
   public shared ({ caller }) func clearHistory() : async () {
     transcriptionHistory.clear();
+  };
+
+  // User Methods
+  public shared ({ caller }) func saveUserInfo(input : UserInput) : async () {
+    let user : User = {
+      id = input.id;
+      name = input.name;
+      email = input.email;
+      phone = input.phone;
+      timestamp = input.timestamp;
+    };
+    users.add(input.id, user);
+  };
+
+  public query ({ caller }) func getAllUsers() : async [User] {
+    users.values().toArray();
+  };
+
+  // Rating Methods
+  public shared ({ caller }) func saveRating(input : RatingInput) : async () {
+    let rating : Rating = {
+      id = input.id;
+      userName = input.userName;
+      stars = input.stars;
+      comment = input.comment;
+      timestamp = input.timestamp;
+    };
+    ratings.add(input.id, rating);
+  };
+
+  public query ({ caller }) func getAllRatings() : async [Rating] {
+    ratings.values().toArray();
+  };
+
+  // UserActivity Methods
+  public shared ({ caller }) func saveUserActivity(input : UserActivityInput) : async () {
+    let activity : UserActivity = {
+      id = input.id;
+      userId = input.userId;
+      userName = input.userName;
+      userEmail = input.userEmail;
+      activityType = input.activityType;
+      inputText = input.inputText;
+      outputText = input.outputText;
+      sourceFile = input.sourceFile;
+      detectedLanguage = input.detectedLanguage;
+      timestamp = input.timestamp;
+    };
+    userActivities.add(input.id, activity);
+  };
+
+  public query ({ caller }) func getAllActivities() : async [UserActivity] {
+    let activitiesArray = userActivities.values().toArray();
+    let reversedArray = activitiesArray.reverse();
+    reversedArray;
+  };
+
+  public query ({ caller }) func getActivitiesByUser(userId : Text) : async [UserActivity] {
+    let filteredActivities = userActivities.values().toArray().filter(
+      func(activity) {
+        activity.userId == userId;
+      }
+    );
+    filteredActivities.reverse();
+  };
+
+  // VideoRecord Methods
+  public shared ({ caller }) func saveVideoRecord(input : VideoRecordInput) : async () {
+    let record : VideoRecord = {
+      id = input.id;
+      fileName = input.fileName;
+      blob = input.blob;
+      uploaderName = input.uploaderName;
+      uploaderEmail = input.uploaderEmail;
+      timestamp = input.timestamp;
+    };
+    videoRecords.add(input.id, record);
+  };
+
+  public query ({ caller }) func getAllVideoRecords() : async [VideoRecord] {
+    videoRecords.values().toArray().sort(VideoRecord.compareByTimestamp);
+  };
+
+  public shared ({ caller }) func deleteVideoRecord(id : Text) : async () {
+    switch (videoRecords.get(id)) {
+      case (null) { Runtime.trap("No such video record exists") };
+      case (?_) {
+        videoRecords.remove(id);
+      };
+    };
   };
 };

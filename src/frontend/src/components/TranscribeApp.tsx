@@ -6,18 +6,22 @@ function generateId(): string {
 }
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Menu, Mic2, X } from "lucide-react";
+import { Home, Menu, Mic2, X } from "lucide-react";
+import { ExternalBlob } from "../backend";
 import type { TranscriptionRecord } from "../backend.d";
 import {
   useClearHistory,
   useDeleteTranscription,
   useGetAllTranscriptions,
   useSaveTranscription,
+  useSaveUserActivity,
+  useSaveVideoRecord,
 } from "../hooks/useQueries";
 import {
   CorsError,
   FileTooLargeError,
   transcribeAndTranslate,
+  translateText,
 } from "../services/groq";
 import { AssistantBubble, UserBubble } from "./ChatBubble";
 import { HistorySidebar } from "./HistorySidebar";
@@ -27,11 +31,22 @@ import { WaveformIcon } from "./WaveformIcon";
 interface ChatMessage {
   id: string;
   type: "user" | "assistant";
+  mode?: "video" | "chat";
+  // video mode
   source?: string;
-  targetLanguage?: string;
   transcriptText?: string;
-  translatedText?: string;
+  englishText?: string;
+  hinglishText?: string;
   detectedLanguage?: string;
+  videoAltLanguage?: string;
+  videoAltText?: string;
+  videoAltLoading?: boolean;
+  // chat mode
+  chatInputText?: string;
+  chatOutputText?: string;
+  chatAltLanguage?: string;
+  chatAltText?: string;
+  // shared
   isLoading?: boolean;
   errorMessage?: string;
 }
@@ -48,6 +63,8 @@ export default function TranscribeApp() {
   const { data: historyRecords = [], isLoading: historyLoading } =
     useGetAllTranscriptions();
   const saveTranscription = useSaveTranscription();
+  const saveUserActivity = useSaveUserActivity();
+  const saveVideoRecord = useSaveVideoRecord();
   const deleteTranscription = useDeleteTranscription();
   const clearHistory = useClearHistory();
 
@@ -57,6 +74,7 @@ export default function TranscribeApp() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
+  // ── Video / URL submit ──────────────────────────────────────────────────────
   const handleSubmit = async (
     source: File | string,
     targetLanguage: string,
@@ -66,19 +84,18 @@ export default function TranscribeApp() {
     const sourceName =
       source instanceof File ? source.name : (source as string);
 
-    // Add user message
     const userMsg: ChatMessage = {
       id: `user-${msgId}`,
       type: "user",
+      mode: "video",
       source: sourceName,
-      targetLanguage,
     };
 
-    // Add loading assistant message
     const assistantMsgId = `assistant-${msgId}`;
     const loadingMsg: ChatMessage = {
       id: assistantMsgId,
       type: "assistant",
+      mode: "video",
       isLoading: true,
     };
 
@@ -93,23 +110,23 @@ export default function TranscribeApp() {
         targetLanguageCode,
       );
 
-      // Update assistant message with result
       setMessages((prev) =>
         prev.map((m) =>
           m.id === assistantMsgId
             ? {
                 ...m,
                 isLoading: false,
+                mode: "video" as const,
                 transcriptText: result.transcriptText,
-                translatedText: result.translatedText,
+                englishText: result.englishText,
+                hinglishText: result.hinglishText,
                 detectedLanguage: result.detectedLanguage,
-                targetLanguage,
               }
             : m,
         ),
       );
 
-      // Save to backend (best-effort — don't fail the transcription if backend is unavailable)
+      // Save to backend (best-effort)
       try {
         const recordId = generateId();
         const now = BigInt(Date.now()) * 1_000_000n; // nanoseconds
@@ -117,14 +134,55 @@ export default function TranscribeApp() {
           id: recordId,
           source: sourceName,
           languageSource: result.detectedLanguage,
-          languageTarget: targetLanguageCode,
+          languageTarget: "en",
           transcriptText: result.transcriptText,
-          translatedText: result.translatedText,
+          translatedText: result.englishText,
           timestamp: now,
         });
         toast.success("Transcription saved to history");
       } catch {
         // Backend unavailable — transcription still shown in chat
+      }
+
+      // Upload video to blob storage (best-effort, only for File sources)
+      if (source instanceof File) {
+        try {
+          const bytes = new Uint8Array(await source.arrayBuffer());
+          const externalBlob = ExternalBlob.fromBytes(bytes);
+          const uploaderName = localStorage.getItem("ast_user_name") ?? "";
+          const uploaderEmail = localStorage.getItem("ast_user_email") ?? "";
+          await saveVideoRecord.mutateAsync({
+            id: generateId(),
+            fileName: source.name,
+            blob: externalBlob,
+            uploaderName,
+            uploaderEmail,
+            timestamp: BigInt(Date.now()) * 1_000_000n,
+          });
+        } catch {
+          // Silently ignore video upload failures — don't block the user
+        }
+      }
+
+      // Save user activity (best-effort)
+      try {
+        const userId = localStorage.getItem("ast_user_id") ?? "";
+        const userName = localStorage.getItem("ast_user_name") ?? "";
+        const userEmail = localStorage.getItem("ast_user_email") ?? "";
+        await saveUserActivity.mutateAsync({
+          id: generateId(),
+          userId,
+          userName,
+          userEmail,
+          activityType: "video",
+          inputText: result.transcriptText,
+          outputText: result.englishText,
+          sourceFile: sourceName,
+          detectedLanguage: result.detectedLanguage,
+          timestamp: BigInt(Date.now()) * 1_000_000n,
+        });
+      } catch {
+        // Silently ignore activity save failures
       }
     } catch (err) {
       const errorMessage =
@@ -150,24 +208,172 @@ export default function TranscribeApp() {
     }
   };
 
+  // ── Chat text submit ────────────────────────────────────────────────────────
+  const handleChatSubmit = async (text: string) => {
+    const msgId = generateId();
+
+    const userMsg: ChatMessage = {
+      id: `user-chat-${msgId}`,
+      type: "user",
+      mode: "chat",
+      chatInputText: text,
+    };
+
+    const assistantMsgId = `assistant-chat-${msgId}`;
+    const loadingMsg: ChatMessage = {
+      id: assistantMsgId,
+      type: "assistant",
+      mode: "chat",
+      isLoading: true,
+    };
+
+    setMessages((prev) => [...prev, userMsg, loadingMsg]);
+    setIsProcessing(true);
+
+    try {
+      const hinglishOutput = await translateText(text, "Hinglish");
+
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantMsgId
+            ? {
+                ...m,
+                isLoading: false,
+                mode: "chat" as const,
+                chatInputText: text,
+                chatOutputText: hinglishOutput,
+              }
+            : m,
+        ),
+      );
+
+      // Save user activity (best-effort)
+      try {
+        const userId = localStorage.getItem("ast_user_id") ?? "";
+        const userName = localStorage.getItem("ast_user_name") ?? "";
+        const userEmail = localStorage.getItem("ast_user_email") ?? "";
+        await saveUserActivity.mutateAsync({
+          id: generateId(),
+          userId,
+          userName,
+          userEmail,
+          activityType: "chat",
+          inputText: text,
+          outputText: hinglishOutput,
+          sourceFile: "",
+          detectedLanguage: "",
+          timestamp: BigInt(Date.now()) * 1_000_000n,
+        });
+      } catch {
+        // Silently ignore activity save failures
+      }
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "An unexpected error occurred. Please try again.";
+
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantMsgId
+            ? { ...m, isLoading: false, errorMessage }
+            : m,
+        ),
+      );
+
+      toast.error("Translation failed");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // ── Alt language request for chat messages ──────────────────────────────────
+  const handleRequestAltTranslation = async (
+    msgId: string,
+    language: string,
+  ) => {
+    const msg = messages.find((m) => m.id === msgId);
+    if (!msg?.chatInputText) return;
+
+    try {
+      const altText = await translateText(msg.chatInputText, language);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msgId
+            ? { ...m, chatAltLanguage: language, chatAltText: altText }
+            : m,
+        ),
+      );
+    } catch {
+      toast.error("Could not translate to selected language");
+    }
+  };
+
+  // ── Alt language request for video messages ─────────────────────────────────
+  const handleRequestVideoAltTranslation = async (
+    msgId: string,
+    language: string,
+  ) => {
+    const msg = messages.find((m) => m.id === msgId);
+    if (!msg?.transcriptText) return;
+
+    // Set loading state
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === msgId
+          ? {
+              ...m,
+              videoAltLanguage: language,
+              videoAltLoading: true,
+              videoAltText: undefined,
+            }
+          : m,
+      ),
+    );
+
+    try {
+      const altText = await translateText(msg.transcriptText, language);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msgId
+            ? {
+                ...m,
+                videoAltLanguage: language,
+                videoAltText: altText,
+                videoAltLoading: false,
+              }
+            : m,
+        ),
+      );
+    } catch {
+      toast.error("Could not translate to selected language");
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msgId ? { ...m, videoAltLoading: false } : m,
+        ),
+      );
+    }
+  };
+
+  // ── History handlers ────────────────────────────────────────────────────────
   const handleSelectHistory = (record: TranscriptionRecord) => {
     setSelectedHistoryId(record.id);
     setSidebarOpen(false);
 
-    // Load the selected record into chat view
     const userMsg: ChatMessage = {
       id: `user-history-${record.id}`,
       type: "user",
+      mode: "video",
       source: record.source,
-      targetLanguage: record.languageTarget,
     };
     const assistantMsg: ChatMessage = {
       id: `assistant-history-${record.id}`,
       type: "assistant",
+      mode: "video",
       transcriptText: record.transcriptText,
-      translatedText: record.translatedText,
+      englishText: record.translatedText,
+      hinglishText: "",
       detectedLanguage: record.languageSource,
-      targetLanguage: record.languageTarget,
     };
     setMessages([userMsg, assistantMsg]);
   };
@@ -261,7 +467,7 @@ export default function TranscribeApp() {
             </div>
             <div>
               <h1 className="font-display font-bold text-base text-foreground leading-none">
-                VideoTranscribe
+                Arabic Scholar Translator
               </h1>
               <p className="text-[10px] font-mono text-muted-foreground/70 mt-0.5 leading-none">
                 AI-powered speech to text
@@ -269,7 +475,7 @@ export default function TranscribeApp() {
             </div>
           </div>
 
-          {/* Status pill */}
+          {/* Status pill + Home button */}
           <div className="ml-auto flex items-center gap-2">
             {isProcessing && (
               <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/20">
@@ -278,6 +484,21 @@ export default function TranscribeApp() {
                   Processing
                 </span>
               </div>
+            )}
+            {hasMessages && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 gap-1.5 text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  setMessages([]);
+                  setSelectedHistoryId(null);
+                }}
+                data-ocid="nav.home.button"
+              >
+                <Home className="h-4 w-4" />
+                <span className="hidden sm:inline text-xs">Home</span>
+              </Button>
             )}
           </div>
         </header>
@@ -337,24 +558,69 @@ export default function TranscribeApp() {
                         </div>
                       ))}
                     </div>
+                    {/* Made by credit below feature boxes */}
+                    <div className="mt-6 text-center space-y-2 px-4 py-4 rounded-xl border border-primary/20 bg-primary/5">
+                      <p className="text-sm font-semibold text-foreground font-sans">
+                        Made by Sayed Hamza Salafi 💙
+                      </p>
+                      <p className="text-xs font-medium text-foreground/70 font-sans">
+                        Contact us for any help
+                      </p>
+                      <div className="flex flex-col gap-1">
+                        <a
+                          href="mailto:sayedmohammadhamza45@gmail.com?subject=Help%20regarding%20Arabic%20Scholar%20Translator%20application"
+                          className="text-xs text-primary hover:text-primary/80 transition-colors font-medium underline underline-offset-2"
+                        >
+                          sayedmohammadhamza45@gmail.com
+                        </a>
+                        <a
+                          href="https://wa.me/917838272313?text=Assalamualaikum%20Sayed%20Hamza%20I%20want%20some%20help%20regarding%20your%20application"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-primary hover:text-primary/80 transition-colors font-medium underline underline-offset-2"
+                        >
+                          +91 7838272313
+                        </a>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   messages.map((msg) =>
                     msg.type === "user" ? (
                       <UserBubble
                         key={msg.id}
-                        source={msg.source || ""}
-                        targetLanguage={msg.targetLanguage || "English"}
+                        mode={msg.mode}
+                        source={msg.source}
+                        chatInputText={msg.chatInputText}
                       />
                     ) : (
                       <AssistantBubble
                         key={msg.id}
+                        mode={msg.mode}
                         transcriptText={msg.transcriptText}
-                        translatedText={msg.translatedText}
+                        englishText={msg.englishText}
+                        hinglishText={msg.hinglishText}
                         detectedLanguage={msg.detectedLanguage}
-                        targetLanguage={msg.targetLanguage}
+                        videoAltLanguage={msg.videoAltLanguage}
+                        videoAltText={msg.videoAltText}
+                        videoAltLoading={msg.videoAltLoading}
+                        chatOutputText={msg.chatOutputText}
+                        chatAltLanguage={msg.chatAltLanguage}
+                        chatAltText={msg.chatAltText}
                         isLoading={msg.isLoading}
                         errorMessage={msg.errorMessage}
+                        onRequestAltTranslation={
+                          msg.mode === "chat"
+                            ? (lang) =>
+                                handleRequestAltTranslation(msg.id, lang)
+                            : undefined
+                        }
+                        onRequestVideoAltTranslation={
+                          msg.mode === "video"
+                            ? (lang) =>
+                                handleRequestVideoAltTranslation(msg.id, lang)
+                            : undefined
+                        }
                       />
                     ),
                   )
@@ -367,19 +633,37 @@ export default function TranscribeApp() {
           {/* Input panel */}
           <div className="shrink-0 border-t border-border/60 bg-background/90 backdrop-blur-md px-4 py-4">
             <div className="max-w-3xl mx-auto space-y-3">
-              <InputPanel onSubmit={handleSubmit} isProcessing={isProcessing} />
+              <InputPanel
+                onSubmit={handleSubmit}
+                onChatSubmit={handleChatSubmit}
+                isProcessing={isProcessing}
+              />
               {/* Footer */}
-              <p className="text-center text-[10px] text-muted-foreground/40 font-sans">
-                © {new Date().getFullYear()}. Built with ♥ using{" "}
-                <a
-                  href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(window.location.hostname)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-muted-foreground transition-colors"
-                >
-                  caffeine.ai
-                </a>
-              </p>
+              <div className="text-center space-y-1.5 pt-2 pb-1 px-3 rounded-xl border border-border bg-card/50">
+                <p className="text-xs font-semibold text-foreground font-sans">
+                  Made by Sayed Hamza Salafi 💙
+                </p>
+                <p className="text-[11px] font-medium text-foreground/60 font-sans">
+                  Contact us for any help
+                </p>
+                <p className="text-[11px] font-sans space-x-2">
+                  <a
+                    href="mailto:sayedmohammadhamza45@gmail.com?subject=Help%20regarding%20Arabic%20Scholar%20Translator%20application"
+                    className="text-primary hover:text-primary/80 transition-colors font-medium underline underline-offset-2"
+                  >
+                    sayedmohammadhamza45@gmail.com
+                  </a>
+                  <span className="text-muted-foreground/40">·</span>
+                  <a
+                    href="https://wa.me/917838272313?text=Assalamualaikum%20Sayed%20Hamza%20I%20want%20some%20help%20regarding%20your%20application"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:text-primary/80 transition-colors font-medium underline underline-offset-2"
+                  >
+                    +91 7838272313
+                  </a>
+                </p>
+              </div>
             </div>
           </div>
         </div>

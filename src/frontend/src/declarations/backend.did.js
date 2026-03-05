@@ -8,9 +8,39 @@
 
 import { IDL } from '@icp-sdk/core/candid';
 
+export const _CaffeineStorageCreateCertificateResult = IDL.Record({
+  'method' : IDL.Text,
+  'blob_hash' : IDL.Text,
+});
+export const _CaffeineStorageRefillInformation = IDL.Record({
+  'proposed_top_up_amount' : IDL.Opt(IDL.Nat),
+});
+export const _CaffeineStorageRefillResult = IDL.Record({
+  'success' : IDL.Opt(IDL.Bool),
+  'topped_up_amount' : IDL.Opt(IDL.Nat),
+});
 export const TranscriptionId = IDL.Text;
-export const LanguageCode = IDL.Text;
 export const Time = IDL.Int;
+export const UserActivity = IDL.Record({
+  'id' : IDL.Text,
+  'userName' : IDL.Text,
+  'inputText' : IDL.Text,
+  'activityType' : IDL.Text,
+  'userEmail' : IDL.Text,
+  'userId' : IDL.Text,
+  'sourceFile' : IDL.Text,
+  'timestamp' : Time,
+  'outputText' : IDL.Text,
+  'detectedLanguage' : IDL.Text,
+});
+export const Rating = IDL.Record({
+  'id' : IDL.Text,
+  'userName' : IDL.Text,
+  'comment' : IDL.Text,
+  'stars' : IDL.Nat8,
+  'timestamp' : Time,
+});
+export const LanguageCode = IDL.Text;
 export const TranscriptionRecord = IDL.Record({
   'id' : TranscriptionId,
   'source' : IDL.Text,
@@ -19,6 +49,29 @@ export const TranscriptionRecord = IDL.Record({
   'translatedText' : IDL.Text,
   'timestamp' : Time,
   'transcriptText' : IDL.Text,
+});
+export const User = IDL.Record({
+  'id' : IDL.Text,
+  'name' : IDL.Text,
+  'email' : IDL.Text,
+  'timestamp' : Time,
+  'phone' : IDL.Text,
+});
+export const ExternalBlob = IDL.Vec(IDL.Nat8);
+export const VideoRecord = IDL.Record({
+  'id' : IDL.Text,
+  'uploaderName' : IDL.Text,
+  'blob' : ExternalBlob,
+  'fileName' : IDL.Text,
+  'timestamp' : Time,
+  'uploaderEmail' : IDL.Text,
+});
+export const RatingInput = IDL.Record({
+  'id' : IDL.Text,
+  'userName' : IDL.Text,
+  'comment' : IDL.Text,
+  'stars' : IDL.Nat8,
+  'timestamp' : Time,
 });
 export const TranscriptionRecordInput = IDL.Record({
   'id' : TranscriptionId,
@@ -29,24 +82,121 @@ export const TranscriptionRecordInput = IDL.Record({
   'timestamp' : Time,
   'transcriptText' : IDL.Text,
 });
+export const UserActivityInput = IDL.Record({
+  'id' : IDL.Text,
+  'userName' : IDL.Text,
+  'inputText' : IDL.Text,
+  'activityType' : IDL.Text,
+  'userEmail' : IDL.Text,
+  'userId' : IDL.Text,
+  'sourceFile' : IDL.Text,
+  'timestamp' : Time,
+  'outputText' : IDL.Text,
+  'detectedLanguage' : IDL.Text,
+});
+export const UserInput = IDL.Record({
+  'id' : IDL.Text,
+  'name' : IDL.Text,
+  'email' : IDL.Text,
+  'timestamp' : Time,
+  'phone' : IDL.Text,
+});
+export const VideoRecordInput = IDL.Record({
+  'id' : IDL.Text,
+  'uploaderName' : IDL.Text,
+  'blob' : ExternalBlob,
+  'fileName' : IDL.Text,
+  'timestamp' : Time,
+  'uploaderEmail' : IDL.Text,
+});
 
 export const idlService = IDL.Service({
+  '_caffeineStorageBlobIsLive' : IDL.Func(
+      [IDL.Vec(IDL.Nat8)],
+      [IDL.Bool],
+      ['query'],
+    ),
+  '_caffeineStorageBlobsToDelete' : IDL.Func(
+      [],
+      [IDL.Vec(IDL.Vec(IDL.Nat8))],
+      ['query'],
+    ),
+  '_caffeineStorageConfirmBlobDeletion' : IDL.Func(
+      [IDL.Vec(IDL.Vec(IDL.Nat8))],
+      [],
+      [],
+    ),
+  '_caffeineStorageCreateCertificate' : IDL.Func(
+      [IDL.Text],
+      [_CaffeineStorageCreateCertificateResult],
+      [],
+    ),
+  '_caffeineStorageRefillCashier' : IDL.Func(
+      [IDL.Opt(_CaffeineStorageRefillInformation)],
+      [_CaffeineStorageRefillResult],
+      [],
+    ),
+  '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
   'clearHistory' : IDL.Func([], [], []),
   'deleteTranscription' : IDL.Func([TranscriptionId], [], []),
+  'deleteVideoRecord' : IDL.Func([IDL.Text], [], []),
+  'getActivitiesByUser' : IDL.Func(
+      [IDL.Text],
+      [IDL.Vec(UserActivity)],
+      ['query'],
+    ),
+  'getAllActivities' : IDL.Func([], [IDL.Vec(UserActivity)], ['query']),
+  'getAllRatings' : IDL.Func([], [IDL.Vec(Rating)], ['query']),
   'getAllTranscriptions' : IDL.Func(
       [],
       [IDL.Vec(TranscriptionRecord)],
       ['query'],
     ),
+  'getAllUsers' : IDL.Func([], [IDL.Vec(User)], ['query']),
+  'getAllVideoRecords' : IDL.Func([], [IDL.Vec(VideoRecord)], ['query']),
+  'saveRating' : IDL.Func([RatingInput], [], []),
   'saveTranscription' : IDL.Func([TranscriptionRecordInput], [], []),
+  'saveUserActivity' : IDL.Func([UserActivityInput], [], []),
+  'saveUserInfo' : IDL.Func([UserInput], [], []),
+  'saveVideoRecord' : IDL.Func([VideoRecordInput], [], []),
 });
 
 export const idlInitArgs = [];
 
 export const idlFactory = ({ IDL }) => {
+  const _CaffeineStorageCreateCertificateResult = IDL.Record({
+    'method' : IDL.Text,
+    'blob_hash' : IDL.Text,
+  });
+  const _CaffeineStorageRefillInformation = IDL.Record({
+    'proposed_top_up_amount' : IDL.Opt(IDL.Nat),
+  });
+  const _CaffeineStorageRefillResult = IDL.Record({
+    'success' : IDL.Opt(IDL.Bool),
+    'topped_up_amount' : IDL.Opt(IDL.Nat),
+  });
   const TranscriptionId = IDL.Text;
-  const LanguageCode = IDL.Text;
   const Time = IDL.Int;
+  const UserActivity = IDL.Record({
+    'id' : IDL.Text,
+    'userName' : IDL.Text,
+    'inputText' : IDL.Text,
+    'activityType' : IDL.Text,
+    'userEmail' : IDL.Text,
+    'userId' : IDL.Text,
+    'sourceFile' : IDL.Text,
+    'timestamp' : Time,
+    'outputText' : IDL.Text,
+    'detectedLanguage' : IDL.Text,
+  });
+  const Rating = IDL.Record({
+    'id' : IDL.Text,
+    'userName' : IDL.Text,
+    'comment' : IDL.Text,
+    'stars' : IDL.Nat8,
+    'timestamp' : Time,
+  });
+  const LanguageCode = IDL.Text;
   const TranscriptionRecord = IDL.Record({
     'id' : TranscriptionId,
     'source' : IDL.Text,
@@ -55,6 +205,29 @@ export const idlFactory = ({ IDL }) => {
     'translatedText' : IDL.Text,
     'timestamp' : Time,
     'transcriptText' : IDL.Text,
+  });
+  const User = IDL.Record({
+    'id' : IDL.Text,
+    'name' : IDL.Text,
+    'email' : IDL.Text,
+    'timestamp' : Time,
+    'phone' : IDL.Text,
+  });
+  const ExternalBlob = IDL.Vec(IDL.Nat8);
+  const VideoRecord = IDL.Record({
+    'id' : IDL.Text,
+    'uploaderName' : IDL.Text,
+    'blob' : ExternalBlob,
+    'fileName' : IDL.Text,
+    'timestamp' : Time,
+    'uploaderEmail' : IDL.Text,
+  });
+  const RatingInput = IDL.Record({
+    'id' : IDL.Text,
+    'userName' : IDL.Text,
+    'comment' : IDL.Text,
+    'stars' : IDL.Nat8,
+    'timestamp' : Time,
   });
   const TranscriptionRecordInput = IDL.Record({
     'id' : TranscriptionId,
@@ -65,16 +238,83 @@ export const idlFactory = ({ IDL }) => {
     'timestamp' : Time,
     'transcriptText' : IDL.Text,
   });
+  const UserActivityInput = IDL.Record({
+    'id' : IDL.Text,
+    'userName' : IDL.Text,
+    'inputText' : IDL.Text,
+    'activityType' : IDL.Text,
+    'userEmail' : IDL.Text,
+    'userId' : IDL.Text,
+    'sourceFile' : IDL.Text,
+    'timestamp' : Time,
+    'outputText' : IDL.Text,
+    'detectedLanguage' : IDL.Text,
+  });
+  const UserInput = IDL.Record({
+    'id' : IDL.Text,
+    'name' : IDL.Text,
+    'email' : IDL.Text,
+    'timestamp' : Time,
+    'phone' : IDL.Text,
+  });
+  const VideoRecordInput = IDL.Record({
+    'id' : IDL.Text,
+    'uploaderName' : IDL.Text,
+    'blob' : ExternalBlob,
+    'fileName' : IDL.Text,
+    'timestamp' : Time,
+    'uploaderEmail' : IDL.Text,
+  });
   
   return IDL.Service({
+    '_caffeineStorageBlobIsLive' : IDL.Func(
+        [IDL.Vec(IDL.Nat8)],
+        [IDL.Bool],
+        ['query'],
+      ),
+    '_caffeineStorageBlobsToDelete' : IDL.Func(
+        [],
+        [IDL.Vec(IDL.Vec(IDL.Nat8))],
+        ['query'],
+      ),
+    '_caffeineStorageConfirmBlobDeletion' : IDL.Func(
+        [IDL.Vec(IDL.Vec(IDL.Nat8))],
+        [],
+        [],
+      ),
+    '_caffeineStorageCreateCertificate' : IDL.Func(
+        [IDL.Text],
+        [_CaffeineStorageCreateCertificateResult],
+        [],
+      ),
+    '_caffeineStorageRefillCashier' : IDL.Func(
+        [IDL.Opt(_CaffeineStorageRefillInformation)],
+        [_CaffeineStorageRefillResult],
+        [],
+      ),
+    '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
     'clearHistory' : IDL.Func([], [], []),
     'deleteTranscription' : IDL.Func([TranscriptionId], [], []),
+    'deleteVideoRecord' : IDL.Func([IDL.Text], [], []),
+    'getActivitiesByUser' : IDL.Func(
+        [IDL.Text],
+        [IDL.Vec(UserActivity)],
+        ['query'],
+      ),
+    'getAllActivities' : IDL.Func([], [IDL.Vec(UserActivity)], ['query']),
+    'getAllRatings' : IDL.Func([], [IDL.Vec(Rating)], ['query']),
     'getAllTranscriptions' : IDL.Func(
         [],
         [IDL.Vec(TranscriptionRecord)],
         ['query'],
       ),
+    'getAllUsers' : IDL.Func([], [IDL.Vec(User)], ['query']),
+    'getAllVideoRecords' : IDL.Func([], [IDL.Vec(VideoRecord)], ['query']),
+    'saveRating' : IDL.Func([RatingInput], [], []),
     'saveTranscription' : IDL.Func([TranscriptionRecordInput], [], []),
+    'saveUserActivity' : IDL.Func([UserActivityInput], [], []),
+    'saveUserInfo' : IDL.Func([UserInput], [], []),
+    'saveVideoRecord' : IDL.Func([VideoRecordInput], [], []),
   });
 };
 

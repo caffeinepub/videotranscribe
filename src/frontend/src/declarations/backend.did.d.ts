@@ -10,7 +10,22 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
+export type ExternalBlob = Uint8Array;
 export type LanguageCode = string;
+export interface Rating {
+  'id' : string,
+  'userName' : string,
+  'comment' : string,
+  'stars' : number,
+  'timestamp' : Time,
+}
+export interface RatingInput {
+  'id' : string,
+  'userName' : string,
+  'comment' : string,
+  'stars' : number,
+  'timestamp' : Time,
+}
 export type Time = bigint;
 export type TranscriptionId = string;
 export interface TranscriptionRecord {
@@ -31,11 +46,101 @@ export interface TranscriptionRecordInput {
   'timestamp' : Time,
   'transcriptText' : string,
 }
+export interface User {
+  'id' : string,
+  'name' : string,
+  'email' : string,
+  'timestamp' : Time,
+  'phone' : string,
+}
+export interface UserActivity {
+  'id' : string,
+  'userName' : string,
+  'inputText' : string,
+  'activityType' : string,
+  'userEmail' : string,
+  'userId' : string,
+  'sourceFile' : string,
+  'timestamp' : Time,
+  'outputText' : string,
+  'detectedLanguage' : string,
+}
+export interface UserActivityInput {
+  'id' : string,
+  'userName' : string,
+  'inputText' : string,
+  'activityType' : string,
+  'userEmail' : string,
+  'userId' : string,
+  'sourceFile' : string,
+  'timestamp' : Time,
+  'outputText' : string,
+  'detectedLanguage' : string,
+}
+export interface UserInput {
+  'id' : string,
+  'name' : string,
+  'email' : string,
+  'timestamp' : Time,
+  'phone' : string,
+}
+export interface VideoRecord {
+  'id' : string,
+  'uploaderName' : string,
+  'blob' : ExternalBlob,
+  'fileName' : string,
+  'timestamp' : Time,
+  'uploaderEmail' : string,
+}
+export interface VideoRecordInput {
+  'id' : string,
+  'uploaderName' : string,
+  'blob' : ExternalBlob,
+  'fileName' : string,
+  'timestamp' : Time,
+  'uploaderEmail' : string,
+}
+export interface _CaffeineStorageCreateCertificateResult {
+  'method' : string,
+  'blob_hash' : string,
+}
+export interface _CaffeineStorageRefillInformation {
+  'proposed_top_up_amount' : [] | [bigint],
+}
+export interface _CaffeineStorageRefillResult {
+  'success' : [] | [boolean],
+  'topped_up_amount' : [] | [bigint],
+}
 export interface _SERVICE {
+  '_caffeineStorageBlobIsLive' : ActorMethod<[Uint8Array], boolean>,
+  '_caffeineStorageBlobsToDelete' : ActorMethod<[], Array<Uint8Array>>,
+  '_caffeineStorageConfirmBlobDeletion' : ActorMethod<
+    [Array<Uint8Array>],
+    undefined
+  >,
+  '_caffeineStorageCreateCertificate' : ActorMethod<
+    [string],
+    _CaffeineStorageCreateCertificateResult
+  >,
+  '_caffeineStorageRefillCashier' : ActorMethod<
+    [[] | [_CaffeineStorageRefillInformation]],
+    _CaffeineStorageRefillResult
+  >,
+  '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   'clearHistory' : ActorMethod<[], undefined>,
   'deleteTranscription' : ActorMethod<[TranscriptionId], undefined>,
+  'deleteVideoRecord' : ActorMethod<[string], undefined>,
+  'getActivitiesByUser' : ActorMethod<[string], Array<UserActivity>>,
+  'getAllActivities' : ActorMethod<[], Array<UserActivity>>,
+  'getAllRatings' : ActorMethod<[], Array<Rating>>,
   'getAllTranscriptions' : ActorMethod<[], Array<TranscriptionRecord>>,
+  'getAllUsers' : ActorMethod<[], Array<User>>,
+  'getAllVideoRecords' : ActorMethod<[], Array<VideoRecord>>,
+  'saveRating' : ActorMethod<[RatingInput], undefined>,
   'saveTranscription' : ActorMethod<[TranscriptionRecordInput], undefined>,
+  'saveUserActivity' : ActorMethod<[UserActivityInput], undefined>,
+  'saveUserInfo' : ActorMethod<[UserInput], undefined>,
+  'saveVideoRecord' : ActorMethod<[VideoRecordInput], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

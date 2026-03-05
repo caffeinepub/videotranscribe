@@ -1,31 +1,42 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ChevronDown, FileVideo, Link, Loader2, Upload, X } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  FileVideo,
+  Link,
+  Loader2,
+  MessageSquare,
+  Upload,
+  X,
+} from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 
 export const LANGUAGES = [
   { code: "en", label: "English" },
-  { code: "es", label: "Spanish" },
-  { code: "fr", label: "French" },
-  { code: "de", label: "German" },
   { code: "ar", label: "Arabic" },
   { code: "hi", label: "Hindi" },
-  { code: "zh", label: "Chinese" },
-  { code: "ja", label: "Japanese" },
+  { code: "ur", label: "Urdu" },
+  { code: "fr", label: "French" },
+  { code: "es", label: "Spanish" },
+  { code: "de", label: "German" },
   { code: "pt", label: "Portuguese" },
   { code: "ru", label: "Russian" },
-  { code: "it", label: "Italian" },
-  { code: "ko", label: "Korean" },
   { code: "tr", label: "Turkish" },
+  { code: "fa", label: "Persian" },
+  { code: "bn", label: "Bengali" },
+  { code: "sw", label: "Swahili" },
+  { code: "ms", label: "Malay" },
+  { code: "id", label: "Indonesian" },
+  { code: "it", label: "Italian" },
   { code: "nl", label: "Dutch" },
+  { code: "pl", label: "Polish" },
+  { code: "ro", label: "Romanian" },
+  { code: "zh", label: "Chinese" },
+  { code: "ja", label: "Japanese" },
+  { code: "ko", label: "Korean" },
+  { code: "hinglish", label: "Hinglish" },
+  { code: "roman_urdu", label: "Roman Urdu" },
 ] as const;
 
 interface InputPanelProps {
@@ -34,18 +45,32 @@ interface InputPanelProps {
     targetLanguage: string,
     targetLanguageCode: string,
   ) => void;
+  onChatSubmit: (text: string) => void;
   isProcessing: boolean;
 }
 
-export function InputPanel({ onSubmit, isProcessing }: InputPanelProps) {
-  const [activeTab, setActiveTab] = useState<"upload" | "url">("upload");
+export function InputPanel({
+  onSubmit,
+  onChatSubmit,
+  isProcessing,
+}: InputPanelProps) {
+  const [activeTab, setActiveTab] = useState<"upload" | "url" | "chat">(
+    "upload",
+  );
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [urlValue, setUrlValue] = useState("");
-  const [targetLang, setTargetLang] = useState("en");
+  const [chatText, setChatText] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = useCallback((file: File) => {
+    const MAX_SIZE = 500 * 1024 * 1024; // 500MB
+    if (file.size > MAX_SIZE) {
+      alert(
+        `File is too large. Maximum allowed size is 500MB. Your file is ${(file.size / (1024 * 1024)).toFixed(1)}MB.`,
+      );
+      return;
+    }
     setSelectedFile(file);
   }, []);
 
@@ -67,30 +92,40 @@ export function InputPanel({ onSubmit, isProcessing }: InputPanelProps) {
   const handleDragLeave = () => setIsDragging(false);
 
   const handleSubmit = () => {
-    const langEntry = LANGUAGES.find((l) => l.code === targetLang);
-    const langLabel = langEntry?.label || "English";
+    if (activeTab === "chat") {
+      if (!chatText.trim()) return;
+      onChatSubmit(chatText.trim());
+      setChatText("");
+      return;
+    }
 
+    // Video / URL — always sends "English" as target but backend now ignores it
+    // and always returns Original + English + Hinglish
     if (activeTab === "upload") {
       if (!selectedFile) return;
-      onSubmit(selectedFile, langLabel, targetLang);
+      onSubmit(selectedFile, "English", "en");
     } else {
       if (!urlValue.trim()) return;
-      onSubmit(urlValue.trim(), langLabel, targetLang);
+      onSubmit(urlValue.trim(), "English", "en");
     }
   };
 
   const canSubmit =
     !isProcessing &&
-    (activeTab === "upload" ? !!selectedFile : !!urlValue.trim());
+    (activeTab === "upload"
+      ? !!selectedFile
+      : activeTab === "url"
+        ? !!urlValue.trim()
+        : !!chatText.trim());
 
   return (
     <div className="rounded-2xl border border-border bg-card/60 backdrop-blur-sm p-4 shadow-card">
       <Tabs
         value={activeTab}
-        onValueChange={(v) => setActiveTab(v as "upload" | "url")}
+        onValueChange={(v) => setActiveTab(v as "upload" | "url" | "chat")}
       >
-        <div className="flex items-center justify-between mb-4">
-          <TabsList className="h-9 bg-muted/40 border border-border p-0.5 rounded-lg">
+        <div className="mb-4">
+          <TabsList className="h-9 bg-muted/40 border border-border p-0.5 rounded-lg w-full grid grid-cols-3">
             <TabsTrigger
               value="upload"
               className="flex items-center gap-1.5 text-xs font-sans px-3 h-7 rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-primary"
@@ -107,29 +142,15 @@ export function InputPanel({ onSubmit, isProcessing }: InputPanelProps) {
               <Link className="w-3 h-3" />
               Paste URL
             </TabsTrigger>
-          </TabsList>
-
-          {/* Language Selector */}
-          <Select value={targetLang} onValueChange={setTargetLang}>
-            <SelectTrigger
-              className="w-36 h-9 text-xs font-mono border-border bg-muted/30 focus:ring-primary"
-              data-ocid="transcribe.language_select"
+            <TabsTrigger
+              value="chat"
+              className="flex items-center gap-1.5 text-xs font-sans px-3 h-7 rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-primary"
+              data-ocid="transcribe.tab"
             >
-              <SelectValue placeholder="Language" />
-              <ChevronDown className="w-3 h-3 ml-auto opacity-50" />
-            </SelectTrigger>
-            <SelectContent className="font-sans text-sm max-h-60">
-              {LANGUAGES.map((lang) => (
-                <SelectItem
-                  key={lang.code}
-                  value={lang.code}
-                  className="text-xs font-mono cursor-pointer"
-                >
-                  {lang.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+              <MessageSquare className="w-3 h-3" />
+              Chat Translate
+            </TabsTrigger>
+          </TabsList>
         </div>
 
         {/* Upload Tab */}
@@ -199,7 +220,7 @@ export function InputPanel({ onSubmit, isProcessing }: InputPanelProps) {
                       : "Drop video here or click to browse"}
                   </p>
                   <p className="text-xs text-muted-foreground font-mono mt-1">
-                    MP4, MOV, AVI, MP3, WAV — Max 25MB
+                    MP4, MOV, AVI, MP3, WAV — Max 500MB
                   </p>
                 </div>
               </div>
@@ -228,6 +249,25 @@ export function InputPanel({ onSubmit, isProcessing }: InputPanelProps) {
             the file directly.
           </p>
         </TabsContent>
+
+        {/* Chat Translate Tab */}
+        <TabsContent value="chat" className="mt-0">
+          <Textarea
+            placeholder="Type anything in any language…"
+            value={chatText}
+            onChange={(e) => setChatText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && canSubmit) {
+                handleSubmit();
+              }
+            }}
+            className="resize-none font-sans text-sm bg-muted/30 border-border focus-visible:ring-primary min-h-[80px]"
+            data-ocid="chat.textarea"
+          />
+          <p className="text-xs text-muted-foreground/50 font-sans mt-1.5">
+            Press Ctrl+Enter to translate · Output will be in Hinglish
+          </p>
+        </TabsContent>
       </Tabs>
 
       {/* Submit button */}
@@ -236,12 +276,21 @@ export function InputPanel({ onSubmit, isProcessing }: InputPanelProps) {
           onClick={handleSubmit}
           disabled={!canSubmit}
           className="w-full h-10 font-display font-semibold text-sm bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 shadow-glow-sm hover:shadow-glow transition-all duration-200 rounded-xl"
-          data-ocid="transcribe.submit_button"
+          data-ocid={
+            activeTab === "chat"
+              ? "chat.submit_button"
+              : "transcribe.submit_button"
+          }
         >
           {isProcessing ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
               Processing…
+            </>
+          ) : activeTab === "chat" ? (
+            <>
+              <MessageSquare className="w-4 h-4 mr-2" />
+              Translate to Hinglish
             </>
           ) : (
             <>

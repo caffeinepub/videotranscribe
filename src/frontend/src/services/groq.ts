@@ -4,18 +4,19 @@ const GROQ_TRANSCRIPTION_URL =
   "https://api.groq.com/openai/v1/audio/transcriptions";
 const GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions";
 
-const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // 25MB
+const MAX_FILE_SIZE_BYTES = 500 * 1024 * 1024; // 500MB (Groq API itself limits to 25MB)
 
 export interface TranscriptionResult {
-  transcriptText: string;
-  translatedText: string;
+  transcriptText: string; // original text from video
+  englishText: string; // always English translation
+  hinglishText: string; // always Hinglish/Roman Urdu translation
   detectedLanguage: string;
 }
 
 export class FileTooLargeError extends Error {
   constructor(sizeMB: number) {
     super(
-      `File is ${sizeMB.toFixed(1)}MB. Groq's limit is 25MB. Please use a shorter clip.`,
+      `File is ${sizeMB.toFixed(1)}MB. Maximum supported size is 500MB. Please use a shorter clip.`,
     );
     this.name = "FileTooLargeError";
   }
@@ -45,29 +46,86 @@ async function fetchUrlAsBlob(url: string): Promise<Blob> {
   }
 }
 
+interface GroqChatResponse {
+  choices?: Array<{ message?: { content?: string } }>;
+}
+
+async function groqChat(
+  systemPrompt: string,
+  userContent: string,
+): Promise<string> {
+  const response = await fetch(GROQ_CHAT_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${GROQ_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "llama-3.3-70b-versatile",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userContent },
+      ],
+      temperature: 0.1,
+      max_tokens: 4096,
+    }),
+  });
+
+  if (!response.ok) {
+    const errData = await response.json().catch(() => ({}));
+    const message =
+      (errData as { error?: { message?: string } })?.error?.message ||
+      response.statusText;
+    throw new Error(`Translation failed: ${message}`);
+  }
+
+  const data = (await response.json()) as GroqChatResponse;
+  return data.choices?.[0]?.message?.content || userContent;
+}
+
+export async function translateText(
+  text: string,
+  targetLanguage: string,
+): Promise<string> {
+  let systemPrompt: string;
+
+  if (
+    targetLanguage.toLowerCase() === "hinglish" ||
+    targetLanguage.toLowerCase() === "roman urdu"
+  ) {
+    systemPrompt =
+      "Translate the following text to Hinglish (Roman Urdu mixed with English). Write in Roman script, not Devanagari or Arabic. Keep it casual and natural. Return only the translated text.";
+  } else {
+    systemPrompt = `You are a professional translator. Translate the following text to ${targetLanguage}. Return only the translated text, nothing else.`;
+  }
+
+  return groqChat(systemPrompt, text);
+}
+
 export async function transcribeAndTranslate(
   source: File | string,
   targetLanguage: string,
   targetLanguageCode: string,
 ): Promise<TranscriptionResult> {
+  // Suppress unused param warnings — kept for API compatibility
+  void targetLanguage;
+  void targetLanguageCode;
+
   let file: Blob;
   let filename: string;
 
   if (source instanceof File) {
-    // File upload path
     if (source.size > MAX_FILE_SIZE_BYTES) {
       throw new FileTooLargeError(source.size / (1024 * 1024));
     }
     file = source;
     filename = source.name;
   } else {
-    // URL path — fetch and convert to blob
     const blob = await fetchUrlAsBlob(source);
     if (blob.size > MAX_FILE_SIZE_BYTES) {
       throw new FileTooLargeError(blob.size / (1024 * 1024));
     }
     file = blob;
-    // Infer filename from URL
     const urlPath = new URL(source).pathname;
     filename = urlPath.split("/").pop() || "audio.mp4";
   }
@@ -105,59 +163,22 @@ export async function transcribeAndTranslate(
   const transcriptText = transcriptionData.text;
   const detectedLanguage = transcriptionData.language || "unknown";
 
-  // Step 2: Translation (always translate to give the user the target language output)
-  let translatedText = transcriptText;
-  const isAlreadyTargetLanguage =
-    detectedLanguage.toLowerCase() === targetLanguageCode.toLowerCase() ||
-    detectedLanguage.toLowerCase() ===
-      targetLanguage.toLowerCase().substring(0, 2);
-
-  if (
-    !isAlreadyTargetLanguage ||
-    targetLanguage.toLowerCase() !== detectedLanguage.toLowerCase()
-  ) {
-    const chatResponse = await fetch(GROQ_CHAT_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${GROQ_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
-        messages: [
-          {
-            role: "system",
-            content: `You are a professional translator. Translate the following text to ${targetLanguage}. Return only the translated text, nothing else.`,
-          },
-          {
-            role: "user",
-            content: transcriptText,
-          },
-        ],
-        temperature: 0.1,
-        max_tokens: 4096,
-      }),
-    });
-
-    if (!chatResponse.ok) {
-      const errData = await chatResponse.json().catch(() => ({}));
-      const message =
-        (errData as { error?: { message?: string } })?.error?.message ||
-        chatResponse.statusText;
-      throw new Error(`Translation failed: ${message}`);
-    }
-
-    interface GroqChatResponse {
-      choices?: Array<{ message?: { content?: string } }>;
-    }
-
-    const chatData = (await chatResponse.json()) as GroqChatResponse;
-    translatedText = chatData.choices?.[0]?.message?.content || transcriptText;
-  }
+  // Step 2: Translate to English and Hinglish in parallel
+  const [englishText, hinglishText] = await Promise.all([
+    groqChat(
+      "You are a professional translator. Translate the following text to English. Return only the translated text, nothing else.",
+      transcriptText,
+    ),
+    groqChat(
+      "Translate the following text to Hinglish (Roman Urdu mixed with English). Write in Roman script, not Devanagari or Arabic. Keep it casual and natural like everyday speech. Return only the translated text.",
+      transcriptText,
+    ),
+  ]);
 
   return {
     transcriptText,
-    translatedText,
+    englishText,
+    hinglishText,
     detectedLanguage,
   };
 }

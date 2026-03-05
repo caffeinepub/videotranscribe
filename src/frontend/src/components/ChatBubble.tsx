@@ -1,24 +1,62 @@
-import { Check, Copy, Globe2, User } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Check,
+  Copy,
+  Globe2,
+  Loader2,
+  MessageSquare,
+  User,
+} from "lucide-react";
 import { useState } from "react";
+import { LANGUAGES } from "./InputPanel";
 import { WaveformIcon } from "./WaveformIcon";
 
+// ── User Bubble ──────────────────────────────────────────────────────────────
+
 interface UserBubbleProps {
-  source: string;
-  targetLanguage: string;
-}
-
-interface AssistantBubbleProps {
-  transcriptText?: string;
-  translatedText?: string;
-  detectedLanguage?: string;
+  mode?: "video" | "chat";
+  source?: string;
   targetLanguage?: string;
-  isLoading?: boolean;
-  errorMessage?: string;
+  chatInputText?: string;
 }
 
-export function UserBubble({ source, targetLanguage }: UserBubbleProps) {
-  const isUrl = source.startsWith("http");
-  const label = isUrl ? source : source;
+export function UserBubble({
+  mode = "video",
+  source,
+  targetLanguage,
+  chatInputText,
+}: UserBubbleProps) {
+  if (mode === "chat") {
+    return (
+      <div className="flex justify-end animate-slide-up">
+        <div className="flex items-end gap-2 max-w-[80%]">
+          <div className="rounded-2xl rounded-br-sm px-4 py-3 bg-[oklch(0.22_0.04_270)] border border-[oklch(0.32_0.06_270)] shadow-card">
+            <div className="flex items-center gap-2 mb-1">
+              <MessageSquare className="w-3 h-3 text-primary/70" />
+              <span className="text-[10px] font-mono font-medium text-primary/70 uppercase tracking-wider">
+                Chat Input
+              </span>
+            </div>
+            <p className="text-sm font-sans text-foreground/90 leading-relaxed">
+              {chatInputText}
+            </p>
+          </div>
+          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center mb-0.5">
+            <User className="w-3.5 h-3.5 text-primary" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const label = source || "";
+  const isUrl = label.startsWith("http");
 
   return (
     <div className="flex justify-end animate-slide-up">
@@ -41,31 +79,109 @@ export function UserBubble({ source, targetLanguage }: UserBubbleProps) {
   );
 }
 
+// ── Copy Button ───────────────────────────────────────────────────────────────
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground/60 hover:text-primary transition-colors"
+      aria-label="Copy text"
+    >
+      {copied ? (
+        <Check className="w-3 h-3 text-primary" />
+      ) : (
+        <Copy className="w-3 h-3" />
+      )}
+      {copied ? "Copied!" : "Copy"}
+    </button>
+  );
+}
+
+// ── Text Section ─────────────────────────────────────────────────────────────
+
+function TextSection({
+  label,
+  text,
+  highlight = false,
+}: {
+  label: string;
+  text: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <span
+          className={`text-[10px] font-mono uppercase tracking-wider ${
+            highlight ? "text-primary/90" : "text-muted-foreground/70"
+          }`}
+        >
+          {label}
+        </span>
+        <CopyButton text={text} />
+      </div>
+      <p
+        className={`text-sm font-sans leading-relaxed whitespace-pre-wrap ${
+          highlight ? "text-foreground" : "text-foreground/75"
+        }`}
+      >
+        {text}
+      </p>
+    </div>
+  );
+}
+
+// ── Assistant Bubble ──────────────────────────────────────────────────────────
+
+interface AssistantBubbleProps {
+  mode?: "video" | "chat";
+  // video mode fields
+  transcriptText?: string;
+  englishText?: string;
+  hinglishText?: string;
+  detectedLanguage?: string;
+  videoAltLanguage?: string;
+  videoAltText?: string;
+  videoAltLoading?: boolean;
+  // chat mode fields
+  chatInputText?: string;
+  chatOutputText?: string;
+  chatAltLanguage?: string;
+  chatAltText?: string;
+  onRequestAltTranslation?: (language: string) => void;
+  onRequestVideoAltTranslation?: (language: string) => void;
+  // shared
+  isLoading?: boolean;
+  errorMessage?: string;
+}
+
 export function AssistantBubble({
+  mode = "video",
   transcriptText,
-  translatedText,
+  englishText,
+  hinglishText,
   detectedLanguage,
-  targetLanguage,
+  videoAltLanguage,
+  videoAltText,
+  videoAltLoading,
+  chatOutputText,
+  chatAltLanguage,
+  chatAltText,
+  onRequestAltTranslation,
+  onRequestVideoAltTranslation,
   isLoading,
   errorMessage,
 }: AssistantBubbleProps) {
-  const [copiedTranscript, setCopiedTranscript] = useState(false);
-  const [copiedTranslation, setCopiedTranslation] = useState(false);
-
-  const handleCopy = async (
-    text: string,
-    type: "transcript" | "translation",
-  ) => {
-    await navigator.clipboard.writeText(text);
-    if (type === "transcript") {
-      setCopiedTranscript(true);
-      setTimeout(() => setCopiedTranscript(false), 2000);
-    } else {
-      setCopiedTranslation(true);
-      setTimeout(() => setCopiedTranslation(false), 2000);
-    }
-  };
-
   return (
     <div className="flex justify-start animate-slide-up">
       <div className="flex items-end gap-2 max-w-[85%]">
@@ -75,6 +191,7 @@ export function AssistantBubble({
         </div>
 
         <div className="rounded-2xl rounded-bl-sm px-4 py-3 bg-[oklch(0.17_0.025_265)] border border-[oklch(0.26_0.025_265)] shadow-card flex-1">
+          {/* Loading state */}
           {isLoading && (
             <div
               data-ocid="transcribe.loading_state"
@@ -93,11 +210,12 @@ export function AssistantBubble({
                 ))}
               </div>
               <span className="text-sm text-muted-foreground font-sans animate-pulse">
-                Processing audio…
+                Processing…
               </span>
             </div>
           )}
 
+          {/* Error state */}
           {errorMessage && (
             <div data-ocid="transcribe.error_state">
               <div className="flex items-center gap-2 mb-2">
@@ -112,81 +230,165 @@ export function AssistantBubble({
             </div>
           )}
 
-          {!isLoading && !errorMessage && transcriptText && (
-            <div className="space-y-4">
-              {/* Detected language badge */}
-              {detectedLanguage && (
-                <div className="flex items-center gap-2">
-                  <Globe2 className="w-3.5 h-3.5 text-primary/70" />
-                  <span className="text-[10px] font-mono text-primary/80 uppercase tracking-wider">
-                    Detected: {detectedLanguage}
-                  </span>
-                  {targetLanguage && (
-                    <>
-                      <span className="text-muted-foreground/40 text-[10px]">
-                        →
-                      </span>
-                      <span className="text-[10px] font-mono text-primary uppercase tracking-wider">
-                        {targetLanguage}
-                      </span>
-                    </>
-                  )}
+          {/* Video mode content */}
+          {!isLoading &&
+            !errorMessage &&
+            mode === "video" &&
+            transcriptText && (
+              <div className="space-y-4">
+                {/* Language badge */}
+                {detectedLanguage && (
+                  <div className="flex items-center gap-2">
+                    <Globe2 className="w-3.5 h-3.5 text-primary/70" />
+                    <span className="text-[10px] font-mono text-primary/80 uppercase tracking-wider">
+                      Detected: {detectedLanguage}
+                    </span>
+                  </div>
+                )}
+
+                {/* 1. Original transcript */}
+                <TextSection
+                  label="Original Transcript"
+                  text={transcriptText}
+                />
+
+                <div className="border-t border-border/60" />
+
+                {/* 2. English translation */}
+                {englishText && (
+                  <>
+                    <TextSection
+                      label="English Translation"
+                      text={englishText}
+                      highlight
+                    />
+                    <div className="border-t border-border/60" />
+                  </>
+                )}
+
+                {/* 3. Hinglish translation */}
+                {hinglishText && (
+                  <TextSection
+                    label="Hinglish Translation"
+                    text={hinglishText}
+                    highlight
+                  />
+                )}
+
+                {/* 4. Language selector — appears after all 3 outputs */}
+                <div className="border-t border-primary/20 pt-4">
+                  <div className="rounded-xl border border-primary/25 bg-primary/5 px-4 py-3 space-y-3">
+                    <p className="text-[11px] font-sans text-muted-foreground/80 leading-relaxed flex items-center gap-1.5">
+                      <Globe2 className="w-3.5 h-3.5 text-primary/60 shrink-0" />
+                      Select the language in which you want the result
+                    </p>
+
+                    {/* Horizontal scrollable pill selector */}
+                    <div
+                      className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide"
+                      data-ocid="video.language_select"
+                    >
+                      {LANGUAGES.map((lang) => (
+                        <button
+                          key={lang.code}
+                          type="button"
+                          onClick={() => {
+                            if (
+                              onRequestVideoAltTranslation &&
+                              !videoAltLoading
+                            ) {
+                              onRequestVideoAltTranslation(lang.label);
+                            }
+                          }}
+                          disabled={videoAltLoading}
+                          className={`shrink-0 px-3 py-1.5 rounded-full text-[11px] font-mono font-medium transition-all duration-200 border whitespace-nowrap ${
+                            videoAltLanguage === lang.label
+                              ? "bg-primary text-primary-foreground border-primary shadow-glow-sm"
+                              : "bg-muted/30 text-muted-foreground border-border/50 hover:border-primary/50 hover:text-foreground hover:bg-primary/10"
+                          } ${videoAltLoading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                        >
+                          {lang.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Loading state for alt translation */}
+                    {videoAltLoading && (
+                      <div className="flex items-center gap-2 text-xs text-primary/70 font-mono animate-pulse">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Translating to {videoAltLanguage}…
+                      </div>
+                    )}
+
+                    {/* Alt translation result */}
+                    {!videoAltLoading && videoAltLanguage && videoAltText && (
+                      <div className="border-t border-border/40 pt-3">
+                        <TextSection
+                          label={`${videoAltLanguage} Translation`}
+                          text={videoAltText}
+                          highlight
+                        />
+                      </div>
+                    )}
+                  </div>
                 </div>
+              </div>
+            )}
+
+          {/* Chat mode content */}
+          {!isLoading && !errorMessage && mode === "chat" && chatOutputText && (
+            <div className="space-y-4">
+              {/* Hinglish output */}
+              <TextSection
+                label="Hinglish Translation"
+                text={chatOutputText}
+                highlight
+              />
+
+              {/* Alt language section */}
+              {chatAltLanguage && chatAltText && (
+                <>
+                  <div className="border-t border-border/60" />
+                  <TextSection
+                    label={`${chatAltLanguage} Translation`}
+                    text={chatAltText}
+                    highlight
+                  />
+                </>
               )}
 
-              {/* Original transcript */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[10px] font-mono text-muted-foreground/70 uppercase tracking-wider">
-                    Original Transcript
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleCopy(transcriptText, "transcript")}
-                    className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground/60 hover:text-primary transition-colors"
-                    aria-label="Copy transcript"
-                  >
-                    {copiedTranscript ? (
-                      <Check className="w-3 h-3 text-primary" />
-                    ) : (
-                      <Copy className="w-3 h-3" />
-                    )}
-                    {copiedTranscript ? "Copied!" : "Copy"}
-                  </button>
-                </div>
-                <p className="text-sm font-sans text-foreground/75 leading-relaxed whitespace-pre-wrap">
-                  {transcriptText}
+              {/* Language picker hint */}
+              <div className="border-t border-border/40 pt-3 space-y-2">
+                <p className="text-[11px] font-sans text-muted-foreground/70 italic">
+                  If you want a response in another language, choose the
+                  language:
                 </p>
-              </div>
-
-              {/* Divider */}
-              <div className="border-t border-border/60" />
-
-              {/* Translation */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[10px] font-mono text-primary/80 uppercase tracking-wider">
-                    {targetLanguage} Translation
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleCopy(translatedText || "", "translation")
+                <Select
+                  value={chatAltLanguage || ""}
+                  onValueChange={(val) => {
+                    if (val && onRequestAltTranslation) {
+                      onRequestAltTranslation(val);
                     }
-                    className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground/60 hover:text-primary transition-colors"
-                    aria-label="Copy translation"
+                  }}
+                >
+                  <SelectTrigger
+                    className="h-8 text-xs font-mono border-border/60 bg-muted/20 focus:ring-primary w-44"
+                    data-ocid="chat.language_select"
                   >
-                    {copiedTranslation ? (
-                      <Check className="w-3 h-3 text-primary" />
-                    ) : (
-                      <Copy className="w-3 h-3" />
-                    )}
-                    {copiedTranslation ? "Copied!" : "Copy"}
-                  </button>
-                </div>
-                <p className="text-sm font-sans text-foreground leading-relaxed whitespace-pre-wrap">
-                  {translatedText}
-                </p>
+                    <SelectValue placeholder="Choose language…" />
+                  </SelectTrigger>
+                  <SelectContent className="font-sans text-sm max-h-60">
+                    {LANGUAGES.map((lang) => (
+                      <SelectItem
+                        key={lang.code}
+                        value={lang.label}
+                        className="text-xs font-mono cursor-pointer"
+                      >
+                        {lang.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           )}
