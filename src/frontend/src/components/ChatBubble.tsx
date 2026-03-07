@@ -241,14 +241,20 @@ export function AssistantBubble({
                   <div className="flex items-center gap-2">
                     <Globe2 className="w-3.5 h-3.5 text-primary/70" />
                     <span className="text-[10px] font-mono text-primary/80 uppercase tracking-wider">
-                      Detected: {detectedLanguage}
+                      {detectedLanguage === "image"
+                        ? "📷 Image Text Extracted"
+                        : `Detected: ${detectedLanguage}`}
                     </span>
                   </div>
                 )}
 
-                {/* 1. Original transcript */}
+                {/* 1. Original transcript / Extracted text */}
                 <TextSection
-                  label="Original Transcript"
+                  label={
+                    detectedLanguage === "image"
+                      ? "Extracted Text"
+                      : "Original Transcript"
+                  }
                   text={transcriptText}
                 />
 
@@ -283,34 +289,38 @@ export function AssistantBubble({
                       Select the language in which you want the result
                     </p>
 
-                    {/* Horizontal scrollable pill selector */}
-                    <div
-                      className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide"
-                      data-ocid="video.language_select"
+                    {/* Dropdown language selector */}
+                    <Select
+                      value={videoAltLanguage || ""}
+                      onValueChange={(val) => {
+                        if (
+                          val &&
+                          onRequestVideoAltTranslation &&
+                          !videoAltLoading
+                        ) {
+                          onRequestVideoAltTranslation(val);
+                        }
+                      }}
+                      disabled={videoAltLoading}
                     >
-                      {LANGUAGES.map((lang) => (
-                        <button
-                          key={lang.code}
-                          type="button"
-                          onClick={() => {
-                            if (
-                              onRequestVideoAltTranslation &&
-                              !videoAltLoading
-                            ) {
-                              onRequestVideoAltTranslation(lang.label);
-                            }
-                          }}
-                          disabled={videoAltLoading}
-                          className={`shrink-0 px-3 py-1.5 rounded-full text-[11px] font-mono font-medium transition-all duration-200 border whitespace-nowrap ${
-                            videoAltLanguage === lang.label
-                              ? "bg-primary text-primary-foreground border-primary shadow-glow-sm"
-                              : "bg-muted/30 text-muted-foreground border-border/50 hover:border-primary/50 hover:text-foreground hover:bg-primary/10"
-                          } ${videoAltLoading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-                        >
-                          {lang.label}
-                        </button>
-                      ))}
-                    </div>
+                      <SelectTrigger
+                        className="w-full h-9 text-xs font-mono border-border/60 bg-muted/20 focus:ring-primary"
+                        data-ocid="video.language_select"
+                      >
+                        <SelectValue placeholder="Choose language…" />
+                      </SelectTrigger>
+                      <SelectContent className="font-sans text-sm max-h-60">
+                        {LANGUAGES.map((lang) => (
+                          <SelectItem
+                            key={lang.code}
+                            value={lang.label}
+                            className="text-xs font-mono cursor-pointer"
+                          >
+                            {lang.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
 
                     {/* Loading state for alt translation */}
                     {videoAltLoading && (

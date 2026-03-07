@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
   FileVideo,
+  ImageIcon,
   Link,
   Loader2,
   MessageSquare,
@@ -46,22 +47,28 @@ interface InputPanelProps {
     targetLanguageCode: string,
   ) => void;
   onChatSubmit: (text: string) => void;
+  onPhotoSubmit: (file: File) => void;
   isProcessing: boolean;
 }
 
 export function InputPanel({
   onSubmit,
   onChatSubmit,
+  onPhotoSubmit,
   isProcessing,
 }: InputPanelProps) {
-  const [activeTab, setActiveTab] = useState<"upload" | "url" | "chat">(
-    "upload",
-  );
+  const [activeTab, setActiveTab] = useState<
+    "upload" | "url" | "photo" | "chat"
+  >("upload");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [urlValue, setUrlValue] = useState("");
   const [chatText, setChatText] = useState("");
   const [isDragging, setIsDragging] = useState(false);
+  const [isImageDragging, setIsImageDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = useCallback((file: File) => {
     const MAX_SIZE = 500 * 1024 * 1024; // 500MB
@@ -72,6 +79,26 @@ export function InputPanel({
       return;
     }
     setSelectedFile(file);
+  }, []);
+
+  const handleImageSelect = useCallback((file: File) => {
+    const MAX_IMAGE_SIZE = 20 * 1024 * 1024; // 20MB
+    if (file.size > MAX_IMAGE_SIZE) {
+      alert(
+        `Image is too large. Maximum allowed size is 20MB. Your file is ${(file.size / (1024 * 1024)).toFixed(1)}MB.`,
+      );
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      alert("Please select an image file (JPG, PNG, WEBP, GIF).");
+      return;
+    }
+    // Revoke old preview URL to avoid memory leaks
+    setImagePreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
+    setSelectedImage(file);
   }, []);
 
   const handleDrop = useCallback(
@@ -91,11 +118,34 @@ export function InputPanel({
 
   const handleDragLeave = () => setIsDragging(false);
 
+  const handleImageDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsImageDragging(false);
+      const file = e.dataTransfer.files[0];
+      if (file) handleImageSelect(file);
+    },
+    [handleImageSelect],
+  );
+
+  const handleImageDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsImageDragging(true);
+  };
+
+  const handleImageDragLeave = () => setIsImageDragging(false);
+
   const handleSubmit = () => {
     if (activeTab === "chat") {
       if (!chatText.trim()) return;
       onChatSubmit(chatText.trim());
       setChatText("");
+      return;
+    }
+
+    if (activeTab === "photo") {
+      if (!selectedImage) return;
+      onPhotoSubmit(selectedImage);
       return;
     }
 
@@ -116,39 +166,53 @@ export function InputPanel({
       ? !!selectedFile
       : activeTab === "url"
         ? !!urlValue.trim()
-        : !!chatText.trim());
+        : activeTab === "photo"
+          ? !!selectedImage
+          : !!chatText.trim());
 
   return (
     <div className="rounded-2xl border border-border bg-card/60 backdrop-blur-sm p-4 shadow-card">
       <Tabs
         value={activeTab}
-        onValueChange={(v) => setActiveTab(v as "upload" | "url" | "chat")}
+        onValueChange={(v) =>
+          setActiveTab(v as "upload" | "url" | "photo" | "chat")
+        }
       >
         <div className="mb-4">
-          <TabsList className="h-9 bg-muted/40 border border-border p-0.5 rounded-lg w-full grid grid-cols-3">
+          <TabsList className="h-9 bg-muted/40 border border-border p-0.5 rounded-lg w-full grid grid-cols-4">
             <TabsTrigger
               value="upload"
-              className="flex items-center gap-1.5 text-xs font-sans px-3 h-7 rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-primary"
+              className="flex items-center gap-1 text-[11px] font-sans px-2 h-7 rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-primary"
               data-ocid="transcribe.tab"
             >
-              <Upload className="w-3 h-3" />
-              Upload File
+              <Upload className="w-3 h-3 shrink-0" />
+              <span className="hidden sm:inline">Upload</span>
+              <span className="sm:hidden">Video</span>
             </TabsTrigger>
             <TabsTrigger
               value="url"
-              className="flex items-center gap-1.5 text-xs font-sans px-3 h-7 rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-primary"
+              className="flex items-center gap-1 text-[11px] font-sans px-2 h-7 rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-primary"
               data-ocid="transcribe.tab"
             >
-              <Link className="w-3 h-3" />
-              Paste URL
+              <Link className="w-3 h-3 shrink-0" />
+              URL
+            </TabsTrigger>
+            <TabsTrigger
+              value="photo"
+              className="flex items-center gap-1 text-[11px] font-sans px-2 h-7 rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-primary"
+              data-ocid="photo.tab"
+            >
+              <ImageIcon className="w-3 h-3 shrink-0" />
+              Photo
             </TabsTrigger>
             <TabsTrigger
               value="chat"
-              className="flex items-center gap-1.5 text-xs font-sans px-3 h-7 rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-primary"
+              className="flex items-center gap-1 text-[11px] font-sans px-2 h-7 rounded-md data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-primary"
               data-ocid="transcribe.tab"
             >
-              <MessageSquare className="w-3 h-3" />
-              Chat Translate
+              <MessageSquare className="w-3 h-3 shrink-0" />
+              <span className="hidden sm:inline">Chat</span>
+              <span className="sm:hidden">Chat</span>
             </TabsTrigger>
           </TabsList>
         </div>
@@ -250,6 +314,95 @@ export function InputPanel({
           </p>
         </TabsContent>
 
+        {/* Photo Tab */}
+        <TabsContent value="photo" className="mt-0">
+          {selectedImage ? (
+            <div className="flex items-center gap-3 p-3 rounded-xl border border-primary/30 bg-primary/5">
+              {imagePreviewUrl && (
+                <img
+                  src={imagePreviewUrl}
+                  alt="Selected"
+                  className="w-14 h-14 rounded-lg object-cover shrink-0 border border-border/60"
+                />
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-mono font-medium text-foreground truncate">
+                  {selectedImage.name}
+                </p>
+                <p className="text-xs text-muted-foreground font-sans mt-0.5">
+                  {(selectedImage.size / (1024 * 1024)).toFixed(2)} MB
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedImage(null);
+                  setImagePreviewUrl((prev) => {
+                    if (prev) URL.revokeObjectURL(prev);
+                    return null;
+                  });
+                }}
+                className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground shrink-0"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <label
+              htmlFor="image-upload"
+              onDrop={handleImageDrop}
+              onDragOver={handleImageDragOver}
+              onDragLeave={handleImageDragLeave}
+              data-ocid="photo.dropzone"
+              className={`relative cursor-pointer rounded-xl border-2 border-dashed transition-all duration-200 py-8 px-4 text-center block ${
+                isImageDragging
+                  ? "border-primary bg-primary/10 shadow-glow-sm"
+                  : "border-border/60 hover:border-primary/50 hover:bg-primary/5"
+              }`}
+            >
+              <input
+                id="image-upload"
+                ref={imageInputRef}
+                type="file"
+                accept="image/*"
+                className="sr-only"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleImageSelect(f);
+                }}
+                data-ocid="photo.upload_button"
+              />
+              <div className="flex flex-col items-center gap-2 pointer-events-none">
+                <div
+                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+                    isImageDragging ? "bg-primary/20" : "bg-muted/40"
+                  }`}
+                >
+                  <ImageIcon
+                    className={`w-5 h-5 transition-colors ${
+                      isImageDragging ? "text-primary" : "text-muted-foreground"
+                    }`}
+                  />
+                </div>
+                <div>
+                  <p className="text-sm font-sans text-foreground/80">
+                    {isImageDragging
+                      ? "Drop image here"
+                      : "Drop image here or click to browse"}
+                  </p>
+                  <p className="text-xs text-muted-foreground font-mono mt-1">
+                    JPG, PNG, WEBP, GIF — Max 20MB
+                  </p>
+                </div>
+              </div>
+            </label>
+          )}
+          <p className="text-xs text-muted-foreground/60 font-sans mt-2 leading-relaxed">
+            Text in the image will be extracted and translated to English &amp;
+            Hinglish.
+          </p>
+        </TabsContent>
+
         {/* Chat Translate Tab */}
         <TabsContent value="chat" className="mt-0">
           <Textarea
@@ -279,7 +432,9 @@ export function InputPanel({
           data-ocid={
             activeTab === "chat"
               ? "chat.submit_button"
-              : "transcribe.submit_button"
+              : activeTab === "photo"
+                ? "photo.submit_button"
+                : "transcribe.submit_button"
           }
         >
           {isProcessing ? (
@@ -291,6 +446,11 @@ export function InputPanel({
             <>
               <MessageSquare className="w-4 h-4 mr-2" />
               Translate to Hinglish
+            </>
+          ) : activeTab === "photo" ? (
+            <>
+              <ImageIcon className="w-4 h-4 mr-2" />
+              Extract &amp; Translate Text
             </>
           ) : (
             <>

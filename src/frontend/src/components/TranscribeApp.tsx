@@ -6,9 +6,10 @@ function generateId(): string {
 }
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Home, Menu, Mic2, X } from "lucide-react";
+import { Download, Home, Menu, Mic2, Smartphone, X } from "lucide-react";
 import { ExternalBlob } from "../backend";
 import type { TranscriptionRecord } from "../backend.d";
+import { usePWAInstall } from "../hooks/usePWAInstall";
 import {
   useClearHistory,
   useDeleteTranscription,
@@ -21,10 +22,12 @@ import {
   CorsError,
   FileTooLargeError,
   transcribeAndTranslate,
+  transcribeImageAndTranslate,
   translateText,
 } from "../services/groq";
 import { AssistantBubble, UserBubble } from "./ChatBubble";
 import { HistorySidebar } from "./HistorySidebar";
+import { IOSInstallModal } from "./IOSInstallModal";
 import { InputPanel } from "./InputPanel";
 import { WaveformIcon } from "./WaveformIcon";
 
@@ -59,6 +62,16 @@ export default function TranscribeApp() {
   );
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // PWA install state
+  const {
+    canInstall,
+    isInstalled,
+    isIOS,
+    triggerInstall,
+    showIOSModal,
+    setShowIOSModal,
+  } = usePWAInstall();
 
   const { data: historyRecords = [], isLoading: historyLoading } =
     useGetAllTranscriptions();
@@ -287,6 +300,93 @@ export default function TranscribeApp() {
     }
   };
 
+  // ── Photo / image submit ────────────────────────────────────────────────────
+  const handlePhotoSubmit = async (file: File) => {
+    const msgId = generateId();
+    const sourceName = file.name;
+
+    const userMsg: ChatMessage = {
+      id: `user-photo-${msgId}`,
+      type: "user",
+      mode: "video",
+      source: sourceName,
+    };
+
+    const assistantMsgId = `assistant-photo-${msgId}`;
+    const loadingMsg: ChatMessage = {
+      id: assistantMsgId,
+      type: "assistant",
+      mode: "video",
+      isLoading: true,
+    };
+
+    setMessages((prev) => [...prev, userMsg, loadingMsg]);
+    setIsProcessing(true);
+    setSelectedHistoryId(null);
+
+    try {
+      const result = await transcribeImageAndTranslate(file);
+
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantMsgId
+            ? {
+                ...m,
+                isLoading: false,
+                mode: "video" as const,
+                transcriptText: result.transcriptText,
+                englishText: result.englishText,
+                hinglishText: result.hinglishText,
+                detectedLanguage: result.detectedLanguage,
+              }
+            : m,
+        ),
+      );
+
+      // Save user activity (best-effort)
+      try {
+        const userId = localStorage.getItem("ast_user_id") ?? "";
+        const userName = localStorage.getItem("ast_user_name") ?? "";
+        const userEmail = localStorage.getItem("ast_user_email") ?? "";
+        await saveUserActivity.mutateAsync({
+          id: generateId(),
+          userId,
+          userName,
+          userEmail,
+          activityType: "video",
+          inputText: result.transcriptText,
+          outputText: result.englishText,
+          sourceFile: sourceName,
+          detectedLanguage: result.detectedLanguage,
+          timestamp: BigInt(Date.now()) * 1_000_000n,
+        });
+      } catch {
+        // Silently ignore activity save failures
+      }
+    } catch (err) {
+      const errorMessage =
+        err instanceof FileTooLargeError
+          ? err.message
+          : err instanceof CorsError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : "An unexpected error occurred. Please try again.";
+
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantMsgId
+            ? { ...m, isLoading: false, errorMessage }
+            : m,
+        ),
+      );
+
+      toast.error("Image processing failed");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   // ── Alt language request for chat messages ──────────────────────────────────
   const handleRequestAltTranslation = async (
     msgId: string,
@@ -475,7 +575,7 @@ export default function TranscribeApp() {
             </div>
           </div>
 
-          {/* Status pill + Home button */}
+          {/* Status pill + Home button + Install button */}
           <div className="ml-auto flex items-center gap-2">
             {isProcessing && (
               <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/20">
@@ -499,6 +599,25 @@ export default function TranscribeApp() {
                 <Home className="h-4 w-4" />
                 <span className="hidden sm:inline text-xs">Home</span>
               </Button>
+            )}
+            {/* Header Install App button — hidden once installed */}
+            {!isInstalled && canInstall && (
+              <button
+                type="button"
+                onClick={triggerInstall}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/15 border border-primary/35 text-primary text-xs font-semibold hover:bg-primary/25 active:scale-95 transition-all shadow-sm"
+                aria-label={isIOS ? "Add to Home Screen" : "Install App"}
+                data-ocid="pwa.primary_button"
+              >
+                {isIOS ? (
+                  <Smartphone className="w-3.5 h-3.5" />
+                ) : (
+                  <Download className="w-3.5 h-3.5" />
+                )}
+                <span className="hidden xs:inline">
+                  {isIOS ? "Add to Home Screen" : "Install"}
+                </span>
+              </button>
             )}
           </div>
         </header>
@@ -583,6 +702,30 @@ export default function TranscribeApp() {
                         </a>
                       </div>
                     </div>
+
+                    {/* Install App button — center, prominent, hidden when installed */}
+                    {!isInstalled && canInstall && (
+                      <div className="mt-6 flex flex-col items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={triggerInstall}
+                          className="flex items-center gap-2.5 px-6 py-3.5 rounded-2xl bg-primary text-primary-foreground font-semibold font-sans text-sm shadow-lg shadow-primary/30 hover:bg-primary/90 active:scale-95 transition-all"
+                          data-ocid="pwa.open_modal_button"
+                        >
+                          {isIOS ? (
+                            <Smartphone className="w-5 h-5" />
+                          ) : (
+                            <Download className="w-5 h-5" />
+                          )}
+                          {isIOS ? "Add to Home Screen" : "Install App"}
+                        </button>
+                        <p className="text-[11px] text-muted-foreground font-sans">
+                          {isIOS
+                            ? "Install via Safari for quick access"
+                            : "Add to home screen for quick access"}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   messages.map((msg) =>
@@ -636,6 +779,7 @@ export default function TranscribeApp() {
               <InputPanel
                 onSubmit={handleSubmit}
                 onChatSubmit={handleChatSubmit}
+                onPhotoSubmit={handlePhotoSubmit}
                 isProcessing={isProcessing}
               />
               {/* Footer */}
@@ -668,6 +812,12 @@ export default function TranscribeApp() {
           </div>
         </div>
       </div>
+
+      {/* iOS install instruction modal — shared between header and center buttons */}
+      <IOSInstallModal
+        open={showIOSModal}
+        onClose={() => setShowIOSModal(false)}
+      />
     </div>
   );
 }

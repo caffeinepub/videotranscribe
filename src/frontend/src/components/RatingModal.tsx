@@ -5,11 +5,26 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useSaveRating } from "../hooks/useQueries";
 
+const RATING_LAST_SUBMITTED_KEY = "ast_rating_last_submitted";
+const RATING_COOLDOWN_DAYS = 3;
+
+function shouldShowRatingButton(): boolean {
+  const lastSubmitted = localStorage.getItem(RATING_LAST_SUBMITTED_KEY);
+  if (!lastSubmitted) return true; // Never rated before
+  const lastDate = Number.parseInt(lastSubmitted, 10);
+  const now = Date.now();
+  const diffMs = now - lastDate;
+  const diffDays = diffMs / (1000 * 60 * 60 * 24);
+  return diffDays >= RATING_COOLDOWN_DAYS;
+}
+
 export function RatingModal() {
   const [isOpen, setIsOpen] = useState(false);
   const [hovered, setHovered] = useState(0);
   const [selected, setSelected] = useState(0);
   const [comment, setComment] = useState("");
+  // Hide button immediately after rating; re-check on next mount/load
+  const [buttonVisible, setButtonVisible] = useState(shouldShowRatingButton);
   const saveRating = useSaveRating();
 
   const handleSubmit = async () => {
@@ -30,11 +45,15 @@ export function RatingModal() {
         comment: comment.trim(),
         timestamp,
       });
-      toast.success("Thank you for your rating! 💙");
+      // Save the timestamp when user submitted rating
+      localStorage.setItem(RATING_LAST_SUBMITTED_KEY, Date.now().toString());
+      toast.success("Thank you for your rating! 💙 See you in 3 days!");
       setIsOpen(false);
       setSelected(0);
       setHovered(0);
       setComment("");
+      // Hide the button until 3 days have passed
+      setButtonVisible(false);
     } catch {
       toast.error("Could not submit rating. Please try again.");
     }
@@ -47,13 +66,16 @@ export function RatingModal() {
     setComment("");
   };
 
+  // Don't render anything if button should not be shown
+  if (!buttonVisible) return null;
+
   return (
     <>
       {/* Floating trigger button */}
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-2.5 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-all duration-200 hover:scale-105 active:scale-95 font-semibold text-sm"
+        className="fixed bottom-6 right-6 z-50 flex items-center gap-1.5 px-3 py-2 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-all duration-200 hover:scale-105 active:scale-95 font-semibold text-xs"
         data-ocid="rating.open_modal_button"
       >
         <Star className="w-4 h-4 fill-current" />
@@ -137,6 +159,11 @@ export function RatingModal() {
                 className="bg-background/60 border-border/70 focus:border-primary/60 resize-none mb-4 text-sm"
                 data-ocid="rating.textarea"
               />
+
+              {/* Dua text */}
+              <p className="text-center text-xs text-muted-foreground/60 italic font-sans mb-3">
+                Dua mai yaad rakhiyega — سید حمزہ
+              </p>
 
               {/* Actions */}
               <div className="flex gap-3">
