@@ -105,8 +105,14 @@ export function usePWAInstall(): PWAInstallState {
   // canInstall:
   // - Never show if already installed (standalone mode)
   // - Always show for iOS (instruction modal)
-  // - Always show for Android (native prompt OR manual fallback)
-  const canInstall = !isInstalled;
+  // - Always show for Android/mobile (native prompt OR manual fallback)
+  // - Also show on desktop if native prompt is available
+  const isMobile =
+    typeof navigator !== "undefined" &&
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent,
+    );
+  const canInstall = !isInstalled && (isMobile || deferredPrompt !== null);
 
   const hasNativePrompt = deferredPrompt !== null;
 

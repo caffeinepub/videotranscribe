@@ -1,4 +1,4 @@
-const CACHE_NAME = 'arabic-scholar-v2';
+const CACHE_NAME = 'arabic-scholar-v3';
 const urlsToCache = ['/', '/index.html', '/manifest.json'];
 
 self.addEventListener('install', event => {
@@ -18,19 +18,28 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
+  // Only handle GET requests
+  if (event.request.method !== 'GET') return;
+
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request).catch(() =>
         caches.match('/index.html')
       )
     );
-  } else if (event.request.destination === 'script' || event.request.destination === 'style') {
+  } else if (
+    event.request.destination === 'script' ||
+    event.request.destination === 'style' ||
+    event.request.destination === 'image'
+  ) {
     event.respondWith(
       caches.open(CACHE_NAME).then(cache =>
         cache.match(event.request).then(cached => {
           if (cached) return cached;
           return fetch(event.request).then(response => {
-            cache.put(event.request, response.clone());
+            if (response.ok) {
+              cache.put(event.request, response.clone());
+            }
             return response;
           });
         })

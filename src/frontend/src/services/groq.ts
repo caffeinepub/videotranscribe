@@ -216,8 +216,9 @@ export async function transcribeAndTranslate(
     const isYouTube = /youtube\.com|youtu\.be/i.test(source);
     const isInstagram = /instagram\.com/i.test(source);
     if (isYouTube || isInstagram) {
+      const platform = isYouTube ? "YouTube" : "Instagram";
       throw new Error(
-        "YouTube and Instagram videos cannot be downloaded directly due to browser restrictions. Please download the video to your device first, then upload it using the Upload File tab.",
+        `${platform} videos cannot be processed directly — these platforms block direct downloads from any website (it's their security restriction, not ours).\n\n📱 Aasaan tarika: Video apne phone mein save karo, phir "Video" tab se upload karo.`,
       );
     }
 

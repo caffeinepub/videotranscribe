@@ -1,8 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Star, X } from "lucide-react";
+import { CheckCircle2, Star, X } from "lucide-react";
 import { useState } from "react";
-import { toast } from "sonner";
 import { useSaveRating } from "../hooks/useQueries";
 
 const RATING_LAST_SUBMITTED_KEY = "ast_rating_last_submitted";
@@ -23,20 +22,42 @@ export function RatingModal() {
   const [hovered, setHovered] = useState(0);
   const [selected, setSelected] = useState(0);
   const [comment, setComment] = useState("");
+  const [showThankYou, setShowThankYou] = useState(false);
   // Hide button immediately after rating; re-check on next mount/load
   const [buttonVisible, setButtonVisible] = useState(shouldShowRatingButton);
   const saveRating = useSaveRating();
 
   const handleSubmit = async () => {
-    if (selected === 0) {
-      toast.error("Please select a star rating");
-      return;
-    }
+    if (selected === 0) return;
 
     const userName = localStorage.getItem("ast_user_name") || "Anonymous";
     const id = crypto.randomUUID();
     const timestamp = BigInt(Date.now()) * 1_000_000n;
 
+    // Save to localStorage immediately as fallback (backend may be slow)
+    const localRatings = JSON.parse(
+      localStorage.getItem("ast_local_ratings") || "[]",
+    );
+    localRatings.push({
+      id,
+      userName,
+      stars: selected,
+      comment: comment.trim(),
+      timestamp: Date.now(),
+    });
+    localStorage.setItem("ast_local_ratings", JSON.stringify(localRatings));
+    localStorage.setItem(RATING_LAST_SUBMITTED_KEY, Date.now().toString());
+
+    // Close modal and show small thank-you popup immediately
+    setIsOpen(false);
+    setSelected(0);
+    setHovered(0);
+    setComment("");
+    setButtonVisible(false);
+    setShowThankYou(true);
+    setTimeout(() => setShowThankYou(false), 4000);
+
+    // Try to save to backend silently (best-effort, never blocks UI)
     try {
       await saveRating.mutateAsync({
         id,
@@ -45,17 +66,8 @@ export function RatingModal() {
         comment: comment.trim(),
         timestamp,
       });
-      // Save the timestamp when user submitted rating
-      localStorage.setItem(RATING_LAST_SUBMITTED_KEY, Date.now().toString());
-      toast.success("Thank you for your rating! 💙 See you in 3 days!");
-      setIsOpen(false);
-      setSelected(0);
-      setHovered(0);
-      setComment("");
-      // Hide the button until 3 days have passed
-      setButtonVisible(false);
     } catch {
-      toast.error("Could not submit rating. Please try again.");
+      // Silently ignore — rating already saved in localStorage
     }
   };
 
@@ -66,21 +78,38 @@ export function RatingModal() {
     setComment("");
   };
 
-  // Don't render anything if button should not be shown
-  if (!buttonVisible) return null;
-
   return (
     <>
-      {/* Floating trigger button */}
-      <button
-        type="button"
-        onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-50 flex items-center gap-1.5 px-3 py-2 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-all duration-200 hover:scale-105 active:scale-95 font-semibold text-xs"
-        data-ocid="rating.open_modal_button"
-      >
-        <Star className="w-4 h-4 fill-current" />
-        Rate App
-      </button>
+      {/* Small thank-you popup — appears after rating submitted, bottom-right, doesn't overlap numbers */}
+      {showThankYou && (
+        <div
+          className="fixed bottom-6 right-4 z-[100] flex items-center gap-2 px-3 py-2 rounded-xl bg-card border border-primary/40 shadow-lg animate-slide-up"
+          data-ocid="rating.success_state"
+        >
+          <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
+          <div>
+            <p className="text-xs font-semibold text-foreground leading-tight">
+              Shukriya! 💙
+            </p>
+            <p className="text-[10px] text-muted-foreground leading-tight">
+              3 din baad milenge
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Floating trigger button — only visible when user can rate */}
+      {buttonVisible && (
+        <button
+          type="button"
+          onClick={() => setIsOpen(true)}
+          className="fixed bottom-6 right-4 z-50 flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-primary/15 border border-primary/40 text-primary shadow-sm hover:bg-primary/25 transition-all duration-200 hover:scale-105 active:scale-95 text-[11px] font-semibold"
+          data-ocid="rating.open_modal_button"
+        >
+          <Star className="w-3.5 h-3.5 fill-current" />
+          Rate
+        </button>
+      )}
 
       {/* Modal */}
       {isOpen && (
@@ -178,10 +207,10 @@ export function RatingModal() {
                 <Button
                   className="flex-1 font-semibold"
                   onClick={handleSubmit}
-                  disabled={saveRating.isPending}
+                  disabled={selected === 0}
                   data-ocid="rating.submit_button"
                 >
-                  {saveRating.isPending ? "Submitting..." : "Submit Rating"}
+                  Submit Rating
                 </Button>
               </div>
             </div>

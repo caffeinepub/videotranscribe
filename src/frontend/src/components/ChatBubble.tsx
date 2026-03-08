@@ -224,7 +224,7 @@ export function AssistantBubble({
                   Error
                 </span>
               </div>
-              <p className="text-sm text-destructive/90 font-sans leading-relaxed">
+              <p className="text-sm text-destructive/90 font-sans leading-relaxed whitespace-pre-line">
                 {errorMessage}
               </p>
             </div>

@@ -1,25 +1,40 @@
 {
+  "id": "/",
   "name": "Arabic Scholar Translator",
   "short_name": "ArabicScholar",
   "description": "AI-powered video transcription and translation to English and Hinglish",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#0f0f13",
   "theme_color": "#6c63ff",
   "orientation": "portrait-primary",
   "prefer_related_applications": false,
+  "categories": ["education", "utilities"],
   "icons": [
     {
       "src": "/assets/generated/app-icon.dim_192x192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/generated/app-icon.dim_192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
     },
     {
       "src": "/assets/generated/app-icon.dim_512x512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/generated/app-icon.dim_512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
