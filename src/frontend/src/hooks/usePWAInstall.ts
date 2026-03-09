@@ -56,9 +56,12 @@ export function usePWAInstall(): PWAInstallState {
     mql.addEventListener("change", handleChange);
 
     // Listen for Android beforeinstallprompt
+    // This fires when Chrome decides the PWA is installable
     const handleBeforeInstallPrompt = (e: Event) => {
+      // CRITICAL: prevent Chrome's default mini-infobar
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
+      console.log("[PWA] beforeinstallprompt event captured");
     };
 
     // Listen for successful app install
@@ -66,6 +69,7 @@ export function usePWAInstall(): PWAInstallState {
       setIsInstalled(true);
       setDeferredPrompt(null);
       localStorage.setItem(INSTALLED_KEY, "true");
+      console.log("[PWA] App installed successfully");
     };
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
@@ -83,11 +87,12 @@ export function usePWAInstall(): PWAInstallState {
 
   const triggerInstall = async () => {
     if (isIOS) {
+      // iOS: show step-by-step Safari instructions
       setShowIOSModal(true);
       return;
     }
     if (deferredPrompt) {
-      // Native Android install prompt — use it
+      // Native Android install prompt available — use it
       await deferredPrompt.prompt();
       const choice = await deferredPrompt.userChoice;
       if (choice.outcome === "accepted") {
@@ -96,22 +101,24 @@ export function usePWAInstall(): PWAInstallState {
         localStorage.setItem(INSTALLED_KEY, "true");
       }
     } else {
-      // Fallback for Android Chrome when native prompt not yet ready:
-      // Show manual "Add to Home Screen" instructions modal
+      // Native prompt not yet available — show Android manual instructions
+      // This covers: first visit, browser hasn't evaluated installability yet
       setShowIOSModal(true);
     }
   };
 
-  // canInstall:
-  // - Never show if already installed (standalone mode)
-  // - Always show for iOS (instruction modal)
-  // - Always show for Android/mobile (native prompt OR manual fallback)
-  // - Also show on desktop if native prompt is available
+  // Determine if device is mobile
   const isMobile =
     typeof navigator !== "undefined" &&
     /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
       navigator.userAgent,
     );
+
+  // canInstall:
+  // - Never show if already installed (standalone mode)
+  // - Always show for iOS
+  // - Always show for Android/mobile (native prompt OR manual fallback)
+  // - Show on desktop only if native prompt is ready
   const canInstall = !isInstalled && (isMobile || deferredPrompt !== null);
 
   const hasNativePrompt = deferredPrompt !== null;
