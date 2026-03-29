@@ -4,16 +4,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Arabic Scholar Translator</title>
     <meta name="description" content="AI-powered video transcription and translation to English and Hinglish" />
-    <meta name="theme-color" content="#6c63ff" />
-    <meta name="mobile-web-app-capable" content="yes" />
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#6c63ff">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="ArabicScholar" />
-    <link rel="manifest" href="/manifest.json" />
-    <link rel="icon" type="image/png" sizes="192x192" href="/assets/generated/pwa-icon-192.dim_192x192.png" />
-    <link rel="icon" type="image/png" sizes="512x512" href="/assets/generated/pwa-icon-512.dim_512x512.png" />
-    <link rel="apple-touch-icon" href="/assets/generated/pwa-icon-192.dim_192x192.png" />
-    <link rel="apple-touch-icon" sizes="192x192" href="/assets/generated/pwa-icon-192.dim_192x192.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
     <script type="module" crossorigin src="/assets/index-THYfNzT8.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-B51Fmj1U.css">
   </head>
@@ -25,7 +24,6 @@
           navigator.serviceWorker.register('/sw.js', { scope: '/' })
             .then(function(reg) {
               console.log('[PWA] Service worker registered', reg.scope);
-              // Force update check on each load
               reg.update();
             })
             .catch(function(err) {
