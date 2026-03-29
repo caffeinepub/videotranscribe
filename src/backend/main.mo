@@ -18,7 +18,7 @@ actor {
   type URL = Text;
 
   type InProgressState = {
-    progress : Nat8; // 0-100
+    progress : Nat8;
     processingStage : {
       #transcribing;
       #translating;
@@ -196,6 +196,7 @@ actor {
   let ratings = Map.empty<Text, Rating>();
   let userActivities = Map.empty<Text, UserActivity>();
   let videoRecords = Map.empty<Text, VideoRecord>();
+  let blockedUsers = Map.empty<Text, Text>(); // email -> email
 
   // Transcription History Methods
   public shared ({ caller }) func saveTranscription(input : TranscriptionRecordInput) : async () {
@@ -242,6 +243,42 @@ actor {
 
   public query ({ caller }) func getAllUsers() : async [User] {
     users.values().toArray();
+  };
+
+  public shared ({ caller }) func deleteUser(userId : Text) : async () {
+    switch (users.get(userId)) {
+      case (null) { Runtime.trap("No such user exists") };
+      case (?user) {
+        users.remove(userId);
+        // Also delete all activities for this user
+        let toRemove = userActivities.values().toArray().filter(
+          func(activity) { activity.userId == userId }
+        );
+        for (activity in toRemove.vals()) {
+          userActivities.remove(activity.id);
+        };
+      };
+    };
+  };
+
+  // Block/Unblock Methods
+  public shared ({ caller }) func blockUser(email : Text) : async () {
+    blockedUsers.add(email, email);
+  };
+
+  public shared ({ caller }) func unblockUser(email : Text) : async () {
+    blockedUsers.remove(email);
+  };
+
+  public query ({ caller }) func isBlocked(email : Text) : async Bool {
+    switch (blockedUsers.get(email)) {
+      case (null) { false };
+      case (?_) { true };
+    };
+  };
+
+  public query ({ caller }) func getAllBlockedUsers() : async [Text] {
+    blockedUsers.values().toArray();
   };
 
   // Rating Methods

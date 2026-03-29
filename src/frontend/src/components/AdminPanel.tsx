@@ -18,12 +18,14 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Activity,
+  Ban,
   ChevronDown,
   ChevronRight,
   Eye,
   EyeOff,
   Film,
   Loader2,
+  LockOpen,
   LogOut,
   MessageSquare,
   Play,
@@ -31,16 +33,21 @@ import {
   ShieldCheck,
   Star,
   Trash2,
+  Users,
   Video,
 } from "lucide-react";
 import { useState } from "react";
 import type { Rating, User, UserActivity, VideoRecord } from "../backend.d";
 import {
+  useBlockUser,
+  useDeleteUser,
   useDeleteVideoRecord,
   useGetAllActivities,
+  useGetAllBlockedUsers,
   useGetAllRatings,
   useGetAllUsers,
   useGetAllVideoRecords,
+  useUnblockUser,
 } from "../hooks/useQueries";
 
 const ADMIN_PASSWORD = "@Hamza2004";
@@ -68,7 +75,11 @@ function StarDisplay({ count }: { count: number }) {
       {[1, 2, 3, 4, 5].map((star) => (
         <Star
           key={star}
-          className={`w-3.5 h-3.5 ${star <= count ? "text-yellow-400 fill-yellow-400" : "text-muted-foreground/30"}`}
+          className={`w-3.5 h-3.5 ${
+            star <= count
+              ? "text-yellow-400 fill-yellow-400"
+              : "text-muted-foreground/30"
+          }`}
         />
       ))}
     </span>
@@ -95,9 +106,25 @@ function ActivityTypeBadge({ type }: { type: string }) {
 function UsersTable({
   users,
   activities,
+  blockedUsers,
   isLoading,
-}: { users: User[]; activities: UserActivity[]; isLoading: boolean }) {
+}: {
+  users: User[];
+  activities: UserActivity[];
+  blockedUsers: string[];
+  isLoading: boolean;
+}) {
   const [expandedEmail, setExpandedEmail] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<User | null>(null);
+  const deleteUser = useDeleteUser();
+  const blockUser = useBlockUser();
+  const unblockUser = useUnblockUser();
+
+  const handleDelete = async () => {
+    if (!confirmDelete) return;
+    await deleteUser.mutateAsync(confirmDelete.id);
+    setConfirmDelete(null);
+  };
 
   if (isLoading) {
     return (
@@ -123,122 +150,243 @@ function UsersTable({
   }
 
   return (
-    <div
-      className="rounded-xl border border-border/60 overflow-hidden"
-      data-ocid="admin.users.table"
-    >
-      <Table>
-        <TableHeader>
-          <TableRow className="bg-muted/30 hover:bg-muted/30">
-            <TableHead className="w-8 text-xs font-semibold" />
-            <TableHead className="w-12 text-xs font-semibold">#</TableHead>
-            <TableHead className="text-xs font-semibold">Name</TableHead>
-            <TableHead className="text-xs font-semibold">Email</TableHead>
-            <TableHead className="text-xs font-semibold">Phone</TableHead>
-            <TableHead className="text-xs font-semibold">Registered</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {users.map((user, idx) => {
-            const userActivities = activities.filter(
-              (a) => a.userEmail === user.email,
-            );
-            const isExpanded = expandedEmail === user.email;
+    <>
+      <div
+        className="rounded-xl border border-border/60 overflow-hidden"
+        data-ocid="admin.users.table"
+      >
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/30 hover:bg-muted/30">
+              <TableHead className="w-8 text-xs font-semibold" />
+              <TableHead className="w-12 text-xs font-semibold">#</TableHead>
+              <TableHead className="text-xs font-semibold">Name</TableHead>
+              <TableHead className="text-xs font-semibold">Email</TableHead>
+              <TableHead className="text-xs font-semibold">Phone</TableHead>
+              <TableHead className="text-xs font-semibold">
+                Registered
+              </TableHead>
+              <TableHead className="text-xs font-semibold text-right">
+                Actions
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {users.map((user, idx) => {
+              const userActivities = activities.filter(
+                (a) => a.userEmail === user.email,
+              );
+              const isExpanded = expandedEmail === user.email;
+              const isUserBlocked = blockedUsers.includes(user.email);
 
-            return (
-              <>
-                <TableRow
-                  key={user.id}
-                  className="hover:bg-muted/20 cursor-pointer select-none"
-                  onClick={() =>
-                    setExpandedEmail(isExpanded ? null : user.email)
-                  }
-                  data-ocid={
-                    `admin.users.row.${idx + 1}` as `admin.users.row.${number}`
-                  }
-                >
-                  <TableCell className="text-xs text-muted-foreground w-8">
-                    {isExpanded ? (
-                      <ChevronDown className="w-3.5 h-3.5" />
-                    ) : (
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    )}
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {idx + 1}
-                  </TableCell>
-                  <TableCell className="text-sm font-medium">
-                    {user.name}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {user.email}
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {user.phone}
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {formatDate(user.timestamp)}
-                  </TableCell>
-                </TableRow>
-                {isExpanded && (
-                  <TableRow key={`${user.id}-expanded`}>
-                    <TableCell colSpan={6} className="bg-muted/10 p-0">
-                      <div className="px-6 py-4">
-                        <p className="text-xs font-semibold text-muted-foreground mb-3 flex items-center gap-1.5">
-                          <Activity className="w-3.5 h-3.5" />
-                          Activity for {user.name}
-                          <Badge
-                            variant="secondary"
-                            className="ml-1 text-xs h-4 px-1.5 rounded-full"
-                          >
-                            {userActivities.length}
+              return (
+                <>
+                  <TableRow
+                    key={user.id}
+                    className={`hover:bg-muted/20 cursor-pointer select-none ${
+                      isUserBlocked ? "opacity-60" : ""
+                    }`}
+                    onClick={() =>
+                      setExpandedEmail(isExpanded ? null : user.email)
+                    }
+                    data-ocid={
+                      `admin.users.row.${idx + 1}` as `admin.users.row.${number}`
+                    }
+                  >
+                    <TableCell className="text-xs text-muted-foreground w-8">
+                      {isExpanded ? (
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      ) : (
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      )}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {idx + 1}
+                    </TableCell>
+                    <TableCell className="text-sm font-medium">
+                      <span className="flex items-center gap-2">
+                        {user.name}
+                        {isUserBlocked && (
+                          <Badge className="text-[10px] h-4 px-1.5 bg-destructive/15 text-destructive border-destructive/30 hover:bg-destructive/20">
+                            Blocked
                           </Badge>
-                        </p>
-                        {userActivities.length === 0 ? (
-                          <p className="text-xs text-muted-foreground/60 italic">
-                            No activity recorded for this user yet
-                          </p>
-                        ) : (
-                          <div className="space-y-2">
-                            {userActivities.map((act) => (
-                              <div
-                                key={act.id}
-                                className="flex items-start gap-3 p-3 rounded-lg bg-background/60 border border-border/40"
-                              >
-                                <div className="mt-0.5">
-                                  <ActivityTypeBadge type={act.activityType} />
-                                </div>
-                                <div className="flex-1 min-w-0 space-y-1">
-                                  <p className="text-xs text-foreground/80">
-                                    <span className="text-muted-foreground font-medium mr-1">
-                                      Input:
-                                    </span>
-                                    {truncate(act.inputText, 80)}
-                                  </p>
-                                  <p className="text-xs text-foreground/80">
-                                    <span className="text-muted-foreground font-medium mr-1">
-                                      Output:
-                                    </span>
-                                    {truncate(act.outputText, 80)}
-                                  </p>
-                                </div>
-                                <span className="text-[10px] text-muted-foreground/60 shrink-0">
-                                  {formatDate(act.timestamp)}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
                         )}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {user.email}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {user.phone}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {formatDate(user.timestamp)}
+                    </TableCell>
+                    <TableCell
+                      className="text-right"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        {/* Block / Unblock */}
+                        {isUserBlocked ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 gap-1 text-xs text-green-500 hover:text-green-400 hover:bg-green-500/10"
+                            onClick={() => unblockUser.mutate(user.email)}
+                            disabled={unblockUser.isPending}
+                            title="Unblock user"
+                            data-ocid={
+                              `admin.users.secondary_button.${idx + 1}` as `admin.users.secondary_button.${number}`
+                            }
+                          >
+                            {unblockUser.isPending ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <LockOpen className="w-3 h-3" />
+                            )}
+                            Unblock
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 gap-1 text-xs text-orange-500 hover:text-orange-400 hover:bg-orange-500/10"
+                            onClick={() => blockUser.mutate(user.email)}
+                            disabled={blockUser.isPending}
+                            title="Block user"
+                            data-ocid={
+                              `admin.users.toggle.${idx + 1}` as `admin.users.toggle.${number}`
+                            }
+                          >
+                            {blockUser.isPending ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <Ban className="w-3 h-3" />
+                            )}
+                            Block
+                          </Button>
+                        )}
+                        {/* Delete */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 gap-1 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => setConfirmDelete(user)}
+                          title="Delete user data"
+                          data-ocid={
+                            `admin.users.delete_button.${idx + 1}` as `admin.users.delete_button.${number}`
+                          }
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          Delete
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
-                )}
-              </>
-            );
-          })}
-        </TableBody>
-      </Table>
-    </div>
+                  {isExpanded && (
+                    <TableRow key={`${user.id}-expanded`}>
+                      <TableCell colSpan={7} className="bg-muted/10 p-0">
+                        <div className="px-6 py-4">
+                          <p className="text-xs font-semibold text-muted-foreground mb-3 flex items-center gap-1.5">
+                            <Activity className="w-3.5 h-3.5" />
+                            Activity for {user.name}
+                            <Badge
+                              variant="secondary"
+                              className="ml-1 text-xs h-4 px-1.5 rounded-full"
+                            >
+                              {userActivities.length}
+                            </Badge>
+                          </p>
+                          {userActivities.length === 0 ? (
+                            <p className="text-xs text-muted-foreground/60 italic">
+                              No activity recorded for this user yet
+                            </p>
+                          ) : (
+                            <div className="space-y-2">
+                              {userActivities.map((act) => (
+                                <div
+                                  key={act.id}
+                                  className="flex items-start gap-3 p-3 rounded-lg bg-background/60 border border-border/40"
+                                >
+                                  <div className="mt-0.5">
+                                    <ActivityTypeBadge
+                                      type={act.activityType}
+                                    />
+                                  </div>
+                                  <div className="flex-1 min-w-0 space-y-1">
+                                    <p className="text-xs text-foreground/80">
+                                      <span className="text-muted-foreground font-medium mr-1">
+                                        Input:
+                                      </span>
+                                      {truncate(act.inputText, 80)}
+                                    </p>
+                                    <p className="text-xs text-foreground/80">
+                                      <span className="text-muted-foreground font-medium mr-1">
+                                        Output:
+                                      </span>
+                                      {truncate(act.outputText, 80)}
+                                    </p>
+                                  </div>
+                                  <span className="text-[10px] text-muted-foreground/60 shrink-0">
+                                    {formatDate(act.timestamp)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* Delete Confirm Dialog */}
+      <Dialog
+        open={!!confirmDelete}
+        onOpenChange={(open) => !open && setConfirmDelete(null)}
+      >
+        <DialogContent className="max-w-sm" data-ocid="admin.users.dialog">
+          <DialogHeader>
+            <DialogTitle>Delete User Data?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            This will permanently delete{" "}
+            <span className="font-semibold text-foreground">
+              {confirmDelete?.name}
+            </span>
+            's account and all their activity history. This cannot be undone.
+          </p>
+          <div className="flex items-center justify-end gap-2 mt-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setConfirmDelete(null)}
+              data-ocid="admin.users.cancel_button"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleDelete}
+              disabled={deleteUser.isPending}
+              data-ocid="admin.users.confirm_button"
+            >
+              {deleteUser.isPending ? (
+                <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+              ) : null}
+              Delete Permanently
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -652,13 +800,19 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
     isLoading: videosLoading,
     refetch: refetchVideos,
   } = useGetAllVideoRecords();
+  const { data: blockedUsers = [], refetch: refetchBlocked } =
+    useGetAllBlockedUsers();
+
   const [activeTab, setActiveTab] = useState("users");
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
   const handleRefresh = () => {
     refetchUsers();
     refetchRatings();
     refetchActivities();
     refetchVideos();
+    refetchBlocked();
+    setLastRefresh(new Date());
   };
 
   return (
@@ -679,6 +833,9 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2">
+          <span className="text-[10px] text-muted-foreground/50 hidden sm:block">
+            Last refreshed: {lastRefresh.toLocaleTimeString()}
+          </span>
           <Button
             variant="ghost"
             size="sm"
@@ -703,7 +860,57 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
       </header>
 
       {/* Content */}
-      <main className="max-w-6xl mx-auto px-4 py-8">
+      <main className="max-w-6xl mx-auto px-4 py-6">
+        {/* Stats Row */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+              <Users className="w-4 h-4 text-primary" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold leading-none text-foreground">
+                {users.length}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Total Users
+              </p>
+            </div>
+          </div>
+          <div className="rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-4 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-yellow-500/10 flex items-center justify-center shrink-0">
+              <Star className="w-4 h-4 text-yellow-500" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold leading-none text-foreground">
+                {ratings.length}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">Ratings</p>
+            </div>
+          </div>
+          <div className="rounded-xl border border-purple-500/20 bg-purple-500/5 p-4 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0">
+              <Activity className="w-4 h-4 text-purple-500" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold leading-none text-foreground">
+                {activities.length}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">Activities</p>
+            </div>
+          </div>
+          <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-4 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-destructive/10 flex items-center justify-center shrink-0">
+              <Ban className="w-4 h-4 text-destructive" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold leading-none text-foreground">
+                {blockedUsers.length}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">Blocked</p>
+            </div>
+          </div>
+        </div>
+
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="mb-6" data-ocid="admin.tab">
             <TabsTrigger value="users" className="gap-1.5 text-xs sm:text-sm">
@@ -711,7 +918,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               {users.length > 0 && (
                 <Badge
                   variant="secondary"
-                  className="ml-1 text-xs h-4 px-1.5 rounded-full"
+                  className="ml-1 text-xs h-5 px-2 rounded-full font-bold"
                 >
                   {users.length}
                 </Badge>
@@ -722,7 +929,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               {ratings.length > 0 && (
                 <Badge
                   variant="secondary"
-                  className="ml-1 text-xs h-4 px-1.5 rounded-full"
+                  className="ml-1 text-xs h-5 px-2 rounded-full font-bold"
                 >
                   {ratings.length}
                 </Badge>
@@ -736,7 +943,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               {activities.length > 0 && (
                 <Badge
                   variant="secondary"
-                  className="ml-1 text-xs h-4 px-1.5 rounded-full"
+                  className="ml-1 text-xs h-5 px-2 rounded-full font-bold"
                 >
                   {activities.length}
                 </Badge>
@@ -748,7 +955,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
               {videos.length > 0 && (
                 <Badge
                   variant="secondary"
-                  className="ml-1 text-xs h-4 px-1.5 rounded-full"
+                  className="ml-1 text-xs h-5 px-2 rounded-full font-bold"
                 >
                   {videos.length}
                 </Badge>
@@ -760,6 +967,7 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
             <UsersTable
               users={users}
               activities={activities}
+              blockedUsers={blockedUsers}
               isLoading={usersLoading}
             />
           </TabsContent>

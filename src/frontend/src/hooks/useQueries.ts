@@ -12,6 +12,15 @@ import type {
 } from "../backend.d";
 import { useActor } from "./useActor";
 
+// Extended actor type for backend methods added after code generation
+type ExtendedActor = ReturnType<typeof useActor>["actor"] & {
+  blockUser(email: string): Promise<void>;
+  unblockUser(email: string): Promise<void>;
+  isBlocked(email: string): Promise<boolean>;
+  getAllBlockedUsers(): Promise<Array<string>>;
+  deleteUser(userId: string): Promise<void>;
+};
+
 export function useGetAllTranscriptions() {
   const { actor, isFetching } = useActor();
   return useQuery<TranscriptionRecord[]>({
@@ -179,5 +188,72 @@ export function useDeleteVideoRecord() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["videoRecords"] });
     },
+  });
+}
+
+export function useDeleteUser() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (userId: string) => {
+      if (!actor) throw new Error("Actor not ready");
+      await (actor as ExtendedActor).deleteUser(userId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      queryClient.invalidateQueries({ queryKey: ["activities"] });
+    },
+  });
+}
+
+export function useBlockUser() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (email: string) => {
+      if (!actor) throw new Error("Actor not ready");
+      await (actor as ExtendedActor).blockUser(email);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["blockedUsers"] });
+    },
+  });
+}
+
+export function useUnblockUser() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (email: string) => {
+      if (!actor) throw new Error("Actor not ready");
+      await (actor as ExtendedActor).unblockUser(email);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["blockedUsers"] });
+    },
+  });
+}
+
+export function useGetAllBlockedUsers() {
+  const { actor, isFetching } = useActor();
+  return useQuery<string[]>({
+    queryKey: ["blockedUsers"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return (actor as ExtendedActor).getAllBlockedUsers();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useIsBlocked(email: string) {
+  const { actor, isFetching } = useActor();
+  return useQuery<boolean>({
+    queryKey: ["isBlocked", email],
+    queryFn: async () => {
+      if (!actor || !email) return false;
+      return (actor as ExtendedActor).isBlocked(email);
+    },
+    enabled: !!actor && !isFetching && !!email,
   });
 }

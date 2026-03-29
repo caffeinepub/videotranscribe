@@ -104,6 +104,11 @@ export interface TranscriptionRecordInput {
     transcriptText: string;
 }
 export interface backendInterface {
+    blockUser(email: string): Promise<void>;
+    unblockUser(email: string): Promise<void>;
+    isBlocked(email: string): Promise<boolean>;
+    getAllBlockedUsers(): Promise<Array<string>>;
+    deleteUser(userId: string): Promise<void>;
     clearHistory(): Promise<void>;
     deleteTranscription(id: TranscriptionId): Promise<void>;
     deleteVideoRecord(id: string): Promise<void>;
