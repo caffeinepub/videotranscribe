@@ -12,8 +12,7 @@ import type {
 } from "../backend.d";
 import { useActor } from "./useActor";
 
-// Extended actor type for backend methods added after code generation
-type ExtendedActor = ReturnType<typeof useActor>["actor"] & {
+type ExtendedBackend = {
   blockUser(email: string): Promise<void>;
   unblockUser(email: string): Promise<void>;
   isBlocked(email: string): Promise<boolean>;
@@ -146,6 +145,7 @@ export function useGetAllActivities() {
       return actor.getAllActivities();
     },
     enabled: !!actor && !isFetching,
+    refetchInterval: 30000,
   });
 }
 
@@ -197,7 +197,7 @@ export function useDeleteUser() {
   return useMutation({
     mutationFn: async (userId: string) => {
       if (!actor) throw new Error("Actor not ready");
-      await (actor as ExtendedActor).deleteUser(userId);
+      await (actor as unknown as ExtendedBackend).deleteUser(userId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
@@ -212,7 +212,7 @@ export function useBlockUser() {
   return useMutation({
     mutationFn: async (email: string) => {
       if (!actor) throw new Error("Actor not ready");
-      await (actor as ExtendedActor).blockUser(email);
+      await (actor as unknown as ExtendedBackend).blockUser(email);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["blockedUsers"] });
@@ -226,7 +226,7 @@ export function useUnblockUser() {
   return useMutation({
     mutationFn: async (email: string) => {
       if (!actor) throw new Error("Actor not ready");
-      await (actor as ExtendedActor).unblockUser(email);
+      await (actor as unknown as ExtendedBackend).unblockUser(email);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["blockedUsers"] });
@@ -240,7 +240,7 @@ export function useGetAllBlockedUsers() {
     queryKey: ["blockedUsers"],
     queryFn: async () => {
       if (!actor) return [];
-      return (actor as ExtendedActor).getAllBlockedUsers();
+      return (actor as unknown as ExtendedBackend).getAllBlockedUsers();
     },
     enabled: !!actor && !isFetching,
   });
@@ -252,7 +252,7 @@ export function useIsBlocked(email: string) {
     queryKey: ["isBlocked", email],
     queryFn: async () => {
       if (!actor || !email) return false;
-      return (actor as ExtendedActor).isBlocked(email);
+      return (actor as unknown as ExtendedBackend).isBlocked(email);
     },
     enabled: !!actor && !isFetching && !!email,
   });

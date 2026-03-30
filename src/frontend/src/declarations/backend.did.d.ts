@@ -141,6 +141,11 @@ export interface _SERVICE {
   'saveUserActivity' : ActorMethod<[UserActivityInput], undefined>,
   'saveUserInfo' : ActorMethod<[UserInput], undefined>,
   'saveVideoRecord' : ActorMethod<[VideoRecordInput], undefined>,
+  'blockUser' : ActorMethod<[string], undefined>,
+  'unblockUser' : ActorMethod<[string], undefined>,
+  'isBlocked' : ActorMethod<[string], boolean>,
+  'getAllBlockedUsers' : ActorMethod<[], Array<string>>,
+  'deleteUser' : ActorMethod<[string], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];
