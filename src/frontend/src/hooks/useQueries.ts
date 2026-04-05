@@ -12,14 +12,6 @@ import type {
 } from "../backend.d";
 import { useActor } from "./useActor";
 
-type ExtendedBackend = {
-  blockUser(email: string): Promise<void>;
-  unblockUser(email: string): Promise<void>;
-  isBlocked(email: string): Promise<boolean>;
-  getAllBlockedUsers(): Promise<Array<string>>;
-  deleteUser(userId: string): Promise<void>;
-};
-
 export function useGetAllTranscriptions() {
   const { actor, isFetching } = useActor();
   return useQuery<TranscriptionRecord[]>({
@@ -197,7 +189,7 @@ export function useDeleteUser() {
   return useMutation({
     mutationFn: async (userId: string) => {
       if (!actor) throw new Error("Actor not ready");
-      await (actor as unknown as ExtendedBackend).deleteUser(userId);
+      await actor.deleteUser(userId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
@@ -212,7 +204,7 @@ export function useBlockUser() {
   return useMutation({
     mutationFn: async (email: string) => {
       if (!actor) throw new Error("Actor not ready");
-      await (actor as unknown as ExtendedBackend).blockUser(email);
+      await actor.blockUser(email);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["blockedUsers"] });
@@ -226,7 +218,7 @@ export function useUnblockUser() {
   return useMutation({
     mutationFn: async (email: string) => {
       if (!actor) throw new Error("Actor not ready");
-      await (actor as unknown as ExtendedBackend).unblockUser(email);
+      await actor.unblockUser(email);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["blockedUsers"] });
@@ -240,7 +232,7 @@ export function useGetAllBlockedUsers() {
     queryKey: ["blockedUsers"],
     queryFn: async () => {
       if (!actor) return [];
-      return (actor as unknown as ExtendedBackend).getAllBlockedUsers();
+      return actor.getAllBlockedUsers();
     },
     enabled: !!actor && !isFetching,
   });
@@ -252,8 +244,35 @@ export function useIsBlocked(email: string) {
     queryKey: ["isBlocked", email],
     queryFn: async () => {
       if (!actor || !email) return false;
-      return (actor as unknown as ExtendedBackend).isBlocked(email);
+      return actor.isBlocked(email);
     },
     enabled: !!actor && !isFetching && !!email,
+  });
+}
+
+export function useGetMaintenanceMode() {
+  const { actor, isFetching } = useActor();
+  return useQuery<boolean>({
+    queryKey: ["maintenanceMode"],
+    queryFn: async () => {
+      if (!actor) return false;
+      return actor.getMaintenanceMode();
+    },
+    enabled: !!actor && !isFetching,
+    refetchInterval: 15000,
+  });
+}
+
+export function useSetMaintenanceMode() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (enabled: boolean) => {
+      if (!actor) throw new Error("Actor not ready");
+      await actor.setMaintenanceMode(enabled);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["maintenanceMode"] });
+    },
   });
 }

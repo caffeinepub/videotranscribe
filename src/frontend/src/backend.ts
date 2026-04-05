@@ -210,6 +210,13 @@ export interface backendInterface {
     saveUserActivity(input: UserActivityInput): Promise<void>;
     saveUserInfo(input: UserInput): Promise<void>;
     saveVideoRecord(input: VideoRecordInput): Promise<void>;
+    blockUser(email: string): Promise<void>;
+    unblockUser(email: string): Promise<void>;
+    isBlocked(email: string): Promise<boolean>;
+    getAllBlockedUsers(): Promise<Array<string>>;
+    deleteUser(userId: string): Promise<void>;
+    setMaintenanceMode(enabled: boolean): Promise<void>;
+    getMaintenanceMode(): Promise<boolean>;
 }
 import type { ExternalBlob as _ExternalBlob, Time as _Time, VideoRecord as _VideoRecord, VideoRecordInput as _VideoRecordInput, _CaffeineStorageRefillInformation as __CaffeineStorageRefillInformation, _CaffeineStorageRefillResult as __CaffeineStorageRefillResult } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
@@ -493,6 +500,34 @@ export class Backend implements backendInterface {
             const result = await this.actor.saveVideoRecord(await to_candid_VideoRecordInput_n12(this._uploadFile, this._downloadFile, arg0));
             return result;
         }
+    }
+    async blockUser(email: string): Promise<void> {
+        const result = await (this.actor as any).blockUser(email);
+        return result;
+    }
+    async unblockUser(email: string): Promise<void> {
+        const result = await (this.actor as any).unblockUser(email);
+        return result;
+    }
+    async isBlocked(email: string): Promise<boolean> {
+        const result = await (this.actor as any).isBlocked(email);
+        return result;
+    }
+    async getAllBlockedUsers(): Promise<Array<string>> {
+        const result = await (this.actor as any).getAllBlockedUsers();
+        return result;
+    }
+    async deleteUser(userId: string): Promise<void> {
+        const result = await (this.actor as any).deleteUser(userId);
+        return result;
+    }
+    async setMaintenanceMode(enabled: boolean): Promise<void> {
+        const result = await (this.actor as any).setMaintenanceMode(enabled);
+        return result;
+    }
+    async getMaintenanceMode(): Promise<boolean> {
+        const result = await (this.actor as any).getMaintenanceMode();
+        return result;
     }
 }
 async function from_candid_ExternalBlob_n11(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _ExternalBlob): Promise<ExternalBlob> {

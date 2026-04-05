@@ -17,66 +17,6 @@ actor {
   type FilePath = Text;
   type URL = Text;
 
-  type InProgressState = {
-    progress : Nat8;
-    processingStage : {
-      #transcribing;
-      #translating;
-    };
-  };
-
-  type ProcessingState = {
-    #new;
-    #queued;
-    #inProgress : InProgressState;
-    #transcribed;
-    #done;
-  };
-
-  type TranscriptionRequest = {
-    var processingState : ProcessingState;
-    id : TranscriptionId;
-    languageSource : LanguageCode;
-    languageTarget : LanguageCode;
-    originalFilename : FilePath;
-    filePath : FilePath;
-    transcriptText : Text;
-    filename : FilePath;
-    reencodedFileUrl : URL;
-    createdDate : Time.Time;
-    processingStartDate : ?Time.Time;
-    completedDate : ?Time.Time;
-    processingDetails : Text;
-    attemptedCount : Nat16;
-  };
-
-  type ProcessingStateChange = {
-    requestId : TranscriptionId;
-    from : ProcessingState;
-    to : ProcessingState;
-    message : Text;
-    timestamp : Time.Time;
-  };
-
-  module ProcessingStateChange {
-    public func compare(change1 : ProcessingStateChange, change2 : ProcessingStateChange) : Order.Order {
-      Int.compare(change1.timestamp, change2.timestamp);
-    };
-  };
-
-  type FFmpegProcessingState = {
-    processingState : ProcessingState;
-    originalFilename : FilePath;
-    encodedFilename : ?FilePath;
-    encodedFileSizeKb : ?Nat32;
-    inputFileSizeKb : Nat32;
-    fileSizeReductionRatio : ?Float;
-    processingStartDate : ?Time.Time;
-    processingCompletionDate : ?Time.Time;
-    processingDetails : Text;
-    attemptedCount : Nat16;
-  };
-
   type TranscriptionRecord = {
     id : TranscriptionId;
     source : Text;
@@ -85,12 +25,6 @@ actor {
     transcriptText : Text;
     translatedText : Text;
     timestamp : Time.Time;
-  };
-
-  module TranscriptionRecord {
-    public func compareByTimestamp(record1 : TranscriptionRecord, record2 : TranscriptionRecord) : Order.Order {
-      Int.compare(record1.timestamp, record2.timestamp);
-    };
   };
 
   type TranscriptionRecordInput = {
@@ -148,12 +82,6 @@ actor {
     timestamp : Time.Time;
   };
 
-  module UserActivity {
-    public func compareByTimestamp(activity1 : UserActivity, activity2 : UserActivity) : Order.Order {
-      Int.compare(activity1.timestamp, activity2.timestamp);
-    };
-  };
-
   type UserActivityInput = {
     id : Text;
     userId : Text;
@@ -196,7 +124,18 @@ actor {
   let ratings = Map.empty<Text, Rating>();
   let userActivities = Map.empty<Text, UserActivity>();
   let videoRecords = Map.empty<Text, VideoRecord>();
-  let blockedUsers = Map.empty<Text, Text>(); // email -> email
+  let blockedUsers = Map.empty<Text, Text>();
+
+  stable var maintenanceMode : Bool = false;
+
+  // Maintenance Mode
+  public shared ({ caller }) func setMaintenanceMode(enabled : Bool) : async () {
+    maintenanceMode := enabled;
+  };
+
+  public query ({ caller }) func getMaintenanceMode() : async Bool {
+    maintenanceMode;
+  };
 
   // Transcription History Methods
   public shared ({ caller }) func saveTranscription(input : TranscriptionRecordInput) : async () {
@@ -250,7 +189,6 @@ actor {
       case (null) { Runtime.trap("No such user exists") };
       case (?user) {
         users.remove(userId);
-        // Also delete all activities for this user
         let toRemove = userActivities.values().toArray().filter(
           func(activity) { activity.userId == userId }
         );
@@ -316,8 +254,7 @@ actor {
 
   public query ({ caller }) func getAllActivities() : async [UserActivity] {
     let activitiesArray = userActivities.values().toArray();
-    let reversedArray = activitiesArray.reverse();
-    reversedArray;
+    activitiesArray.reverse();
   };
 
   public query ({ caller }) func getActivitiesByUser(userId : Text) : async [UserActivity] {

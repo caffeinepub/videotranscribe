@@ -35,6 +35,7 @@ import {
   Trash2,
   Users,
   Video,
+  Wrench,
 } from "lucide-react";
 import { useState } from "react";
 import type { Rating, User, UserActivity, VideoRecord } from "../backend.d";
@@ -47,6 +48,8 @@ import {
   useGetAllRatings,
   useGetAllUsers,
   useGetAllVideoRecords,
+  useGetMaintenanceMode,
+  useSetMaintenanceMode,
   useUnblockUser,
 } from "../hooks/useQueries";
 
@@ -859,6 +862,8 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
   } = useGetAllVideoRecords();
   const { data: blockedUsers = [], refetch: refetchBlocked } =
     useGetAllBlockedUsers();
+  const { data: maintenanceMode = false } = useGetMaintenanceMode();
+  const setMaintenanceMode = useSetMaintenanceMode();
 
   const [activeTab, setActiveTab] = useState("users");
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
@@ -893,6 +898,28 @@ function AdminDashboard({ onLogout }: { onLogout: () => void }) {
           <span className="text-[10px] text-muted-foreground/50 hidden sm:block">
             Last refreshed: {lastRefresh.toLocaleTimeString()}
           </span>
+          <Button
+            variant={maintenanceMode ? "destructive" : "outline"}
+            size="sm"
+            onClick={() => setMaintenanceMode.mutate(!maintenanceMode)}
+            disabled={setMaintenanceMode.isPending}
+            className={`h-8 gap-1.5 text-xs ${maintenanceMode ? "animate-pulse" : ""}`}
+            title={
+              maintenanceMode
+                ? "Maintenance mode is ON — users see Coming Soon screen. Click to turn OFF."
+                : "Turn ON maintenance mode — users will see Coming Soon screen."
+            }
+            data-ocid="admin.toggle"
+          >
+            {setMaintenanceMode.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Wrench className="h-3.5 w-3.5" />
+            )}
+            <span className="hidden xs:inline">
+              {maintenanceMode ? "Maintenance: ON" : "Maintenance: OFF"}
+            </span>
+          </Button>
           <Button
             variant="ghost"
             size="sm"

@@ -159,6 +159,13 @@ export const idlService = IDL.Service({
   'saveUserActivity' : IDL.Func([UserActivityInput], [], []),
   'saveUserInfo' : IDL.Func([UserInput], [], []),
   'saveVideoRecord' : IDL.Func([VideoRecordInput], [], []),
+  'blockUser' : IDL.Func([IDL.Text], [], []),
+  'unblockUser' : IDL.Func([IDL.Text], [], []),
+  'isBlocked' : IDL.Func([IDL.Text], [IDL.Bool], ['query']),
+  'getAllBlockedUsers' : IDL.Func([], [IDL.Vec(IDL.Text)], ['query']),
+  'deleteUser' : IDL.Func([IDL.Text], [], []),
+  'setMaintenanceMode' : IDL.Func([IDL.Bool], [], []),
+  'getMaintenanceMode' : IDL.Func([], [IDL.Bool], ['query']),
 });
 
 export const idlInitArgs = [];
@@ -315,6 +322,13 @@ export const idlFactory = ({ IDL }) => {
     'saveUserActivity' : IDL.Func([UserActivityInput], [], []),
     'saveUserInfo' : IDL.Func([UserInput], [], []),
     'saveVideoRecord' : IDL.Func([VideoRecordInput], [], []),
+    'blockUser' : IDL.Func([IDL.Text], [], []),
+    'unblockUser' : IDL.Func([IDL.Text], [], []),
+    'isBlocked' : IDL.Func([IDL.Text], [IDL.Bool], ['query']),
+    'getAllBlockedUsers' : IDL.Func([], [IDL.Vec(IDL.Text)], ['query']),
+    'deleteUser' : IDL.Func([IDL.Text], [], []),
+    'setMaintenanceMode' : IDL.Func([IDL.Bool], [], []),
+    'getMaintenanceMode' : IDL.Func([], [IDL.Bool], ['query']),
   });
 };
 

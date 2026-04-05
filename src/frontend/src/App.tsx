@@ -2,11 +2,13 @@ import { Toaster } from "@/components/ui/sonner";
 import { useEffect, useState } from "react";
 import { AdminPanel } from "./components/AdminPanel";
 import { BlockedScreen } from "./components/BlockedScreen";
+import { ComingSoonScreen } from "./components/ComingSoonScreen";
 import { PWAInstallPrompt } from "./components/PWAInstallPrompt";
 import { RatingModal } from "./components/RatingModal";
 import TranscribeApp from "./components/TranscribeApp";
 import { UserRegistrationModal } from "./components/UserRegistrationModal";
-import { useIsBlocked } from "./hooks/useQueries";
+import { useActor } from "./hooks/useActor";
+import { useGetMaintenanceMode, useIsBlocked } from "./hooks/useQueries";
 
 function OfflineBanner() {
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
@@ -106,6 +108,124 @@ function OfflineBanner() {
   );
 }
 
+const WAVE_BARS: { delay: string; height: string }[] = [
+  { delay: "0s", height: "20px" },
+  { delay: "0.15s", height: "28px" },
+  { delay: "0.3s", height: "20px" },
+  { delay: "0.45s", height: "28px" },
+  { delay: "0.6s", height: "20px" },
+];
+
+function AppLoadingScreen() {
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "oklch(0.12 0.015 265)",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "20px",
+      }}
+      data-ocid="app.loading_state"
+    >
+      {/* Animated logo */}
+      <div
+        style={{
+          width: "64px",
+          height: "64px",
+          borderRadius: "18px",
+          background: "oklch(0.22 0.04 270 / 0.6)",
+          border: "1.5px solid oklch(0.72 0.18 200 / 0.4)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          boxShadow: "0 0 32px oklch(0.72 0.18 200 / 0.25)",
+          animation: "loadingPulse 2s ease-in-out infinite",
+        }}
+      >
+        <svg
+          width="32"
+          height="32"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="oklch(0.72 0.18 200)"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <title>Loading</title>
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+          <line x1="12" y1="19" x2="12" y2="23" />
+          <line x1="8" y1="23" x2="16" y2="23" />
+        </svg>
+      </div>
+
+      {/* Waveform bars */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "5px",
+          height: "28px",
+        }}
+      >
+        {WAVE_BARS.map((bar) => (
+          <div
+            key={bar.delay}
+            style={{
+              width: "4px",
+              borderRadius: "2px",
+              background: "oklch(0.72 0.18 200)",
+              animation: "waveBar 1.2s ease-in-out infinite",
+              animationDelay: bar.delay,
+              height: bar.height,
+              opacity: 0.8,
+            }}
+          />
+        ))}
+      </div>
+
+      <div style={{ textAlign: "center" }}>
+        <p
+          style={{
+            color: "oklch(0.93 0.02 255)",
+            fontSize: "15px",
+            fontWeight: 600,
+            margin: 0,
+            letterSpacing: "0.01em",
+          }}
+        >
+          Arabic Scholar Translator
+        </p>
+        <p
+          style={{
+            color: "oklch(0.55 0.03 255)",
+            fontSize: "12px",
+            margin: "4px 0 0",
+            fontFamily: "monospace",
+          }}
+        >
+          Loading...
+        </p>
+      </div>
+
+      <style>{`
+        @keyframes loadingPulse {
+          0%, 100% { box-shadow: 0 0 20px oklch(0.72 0.18 200 / 0.2); }
+          50% { box-shadow: 0 0 40px oklch(0.72 0.18 200 / 0.5); }
+        }
+        @keyframes waveBar {
+          0%, 100% { transform: scaleY(0.4); }
+          50% { transform: scaleY(1); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
 function MainApp() {
   const [showRegistration, setShowRegistration] = useState(false);
   const [userEmail, setUserEmail] = useState("");
@@ -124,15 +244,19 @@ function MainApp() {
     }
   }, []);
 
-  const { data: isBlocked, isLoading: checkingBlock } = useIsBlocked(userEmail);
+  const { actor, isFetching: actorLoading } = useActor();
 
-  if (userEmail && checkingBlock) {
-    return (
-      <div
-        className="min-h-screen bg-background"
-        data-ocid="app.loading_state"
-      />
-    );
+  const { data: maintenanceMode } = useGetMaintenanceMode();
+  const { data: isBlocked } = useIsBlocked(userEmail);
+
+  // Show proper loading screen while actor is initializing
+  if (actorLoading || !actor) {
+    return <AppLoadingScreen />;
+  }
+
+  // Maintenance mode check -- shown to all users before blocked check
+  if (maintenanceMode) {
+    return <ComingSoonScreen />;
   }
 
   if (isBlocked) {

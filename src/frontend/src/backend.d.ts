@@ -109,6 +109,8 @@ export interface backendInterface {
     isBlocked(email: string): Promise<boolean>;
     getAllBlockedUsers(): Promise<Array<string>>;
     deleteUser(userId: string): Promise<void>;
+    setMaintenanceMode(enabled: boolean): Promise<void>;
+    getMaintenanceMode(): Promise<boolean>;
     clearHistory(): Promise<void>;
     deleteTranscription(id: TranscriptionId): Promise<void>;
     deleteVideoRecord(id: string): Promise<void>;

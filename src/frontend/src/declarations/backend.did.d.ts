@@ -146,6 +146,8 @@ export interface _SERVICE {
   'isBlocked' : ActorMethod<[string], boolean>,
   'getAllBlockedUsers' : ActorMethod<[], Array<string>>,
   'deleteUser' : ActorMethod<[string], undefined>,
+  'setMaintenanceMode' : ActorMethod<[boolean], undefined>,
+  'getMaintenanceMode' : ActorMethod<[], boolean>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];
